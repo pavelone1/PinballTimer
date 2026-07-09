@@ -97,32 +97,45 @@ way around.
 | Button light Action (ULN 6B) | 42 |
 
 ## Planned pin assignments (not yet in src/main.cpp)
-Worked out to fit the ESP32-S3-DevKitC-1's two 22-pin headers (J1/J3)
-contiguously for solder-header prototyping — not yet written into code.
-Each button's switch and light are paired on adjacent header pins so a
-single 2-pin connector serves both, except Action (see note). This also
-moves some button light GPIOs from what src/main.cpp currently uses.
-Buzzer intentionally left unassigned/unwired for now. VCC/GND rail
-routing on the prototype board is handled separately, not via these
-signal pins.
+Superseded and reworked again: buttons and TFT swapped which header
+they live on (buttons now on J1, TFT now on J3) to shorten wiring runs,
+with displays/encoder filling in around them. This table replaces the
+"Current pin assignments" table above for the next board revision —
+`src/main.cpp` still reflects the old (breadboard-confirmed) layout
+until this is implemented in code.
 
-| Signal | GPIO | Header position | Change from current main.cpp |
-|--------|------|------------------|-------------------------------|
-| Button switch P1 | 43 | J3 pos 2 | new |
-| Button light P1 | 44 | J3 pos 3 | moved from GPIO38 |
-| Button switch P2 | 1 | J3 pos 4 | new |
-| Button light P2 | 2 | J3 pos 5 | moved from GPIO39 |
-| Button switch P3 | 41 | J3 pos 7 | new |
-| Button light P3 | 42 | J3 pos 6 | moved from GPIO40 |
-| Button switch P4 | 39 | J3 pos 9 | new |
-| Button light P4 | 40 | J3 pos 8 | moved from GPIO41 |
-| Button switch Action | 47 | J3 pos 17 | new |
-| Button light Action | 38 | J3 pos 10 | moved from GPIO42; not adjacent to its switch |
-| Encoder CLK | 13 | J1 pos 19 | new |
-| Encoder DT | 14 | J1 pos 20 | new |
-| Encoder SW | 21 | J3 pos 18 | new |
+| Signal | GPIO |
+|--------|------|
+| Button switch P1 | 4 |
+| Button switch P2 | 6 |
+| Button switch P3 | 16 |
+| Button switch P4 | 18 |
+| Button switch Action | 19 |
+| Button light P1 | 5 |
+| Button light P2 | 7 |
+| Button light P3 | 15 |
+| Button light P4 | 17 |
+| Button light Action | 8 |
+| TFT SCLK | 43 |
+| TFT MOSI | 44 |
+| TFT RST | 1 |
+| TFT DC | 2 |
+| TFT CS | 42 |
+| Display 1 CLK / DIO | 40 / 39 |
+| Display 2 CLK / DIO | 9 / 10 |
+| Display 3 CLK / DIO | 13 / 14 |
+| Display 4 CLK / DIO | 47 / 21 |
+| Encoder CLK | 11 |
+| Encoder DT | 12 |
+| Encoder SW | 41 |
 
-With these, every native GPIO on both headers is spoken for.
+**Spare:** GPIO38 — free for the buzzer if it comes back in.
+
+**Caveat:** GPIO19 (Button switch Action) shares the net with this
+board's native USB D− line. Using it as a button input may interact
+with USB flashing/serial depending on the external wiring — accepted
+as a tradeoff, not yet field-tested.
+
 `ESP32Encoder` is in `platformio.ini` lib_deps but not yet used in
 `main.cpp`.
 
