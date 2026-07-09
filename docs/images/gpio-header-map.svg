@@ -1,0 +1,113 @@
+<svg viewBox="0 0 860 800" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>ESP32-S3-DevKitC-1 header pin map for PinballTimer</title>
+<desc>Physical layout of the J1 and J3 22-pin headers on the ESP32-S3-DevKitC-1, showing which GPIO is assigned to which signal for the PinballTimer prototype: numeric displays, TFT, button lights, button switches, rotary encoder, power/ground, and reserved pins to avoid.</desc>
+<style>
+  text { font-family: sans-serif; }
+  .mono { font-family: monospace; }
+  .bg0 { fill: #f4f4f5; }
+  .bg1 { fill: #ffffff; }
+  .tprim { fill: #18181b; }
+  .tsec { fill: #52525b; }
+  .tmuted { fill: #a1a1aa; }
+  .border { stroke: #e4e4e7; }
+  .c-disp { fill: #3b82f6; }
+  .c-tft { fill: #8b5cf6; }
+  .c-light { fill: #f59e0b; }
+  .c-sw { fill: #22c55e; }
+  .c-enc { fill: #06b6d4; }
+  .c-pow { fill: #94a3b8; }
+  .c-avoid { fill: #ef4444; }
+  @media (prefers-color-scheme: dark) {
+    .bg0 { fill: #18181b; }
+    .bg1 { fill: #27272a; }
+    .tprim { fill: #f4f4f5; }
+    .tsec { fill: #a1a1aa; }
+    .tmuted { fill: #71717a; }
+    .border { stroke: #3f3f46; }
+  }
+</style>
+
+<rect x="0" y="0" width="860" height="800" class="bg0"/>
+
+<text x="430" y="34" text-anchor="middle" font-size="20" font-weight="600" class="tprim">ESP32-S3-DevKitC-1 Header Pin Map</text>
+<text x="430" y="54" text-anchor="middle" font-size="12" class="tsec">PinballTimer prototype — J1 (left) and J3 (right), physical top-to-bottom order</text>
+
+<!-- J1 block -->
+<g transform="translate(40,80)">
+  <text x="0" y="0" font-size="13" font-weight="600" class="tprim">J1 header</text>
+  <text x="10" y="18" font-size="10" class="tmuted">POS</text>
+  <text x="34" y="18" font-size="10" class="tmuted">PIN</text>
+  <text x="105" y="18" font-size="10" class="tmuted">FUNCTION</text>
+
+  <g transform="translate(0,24)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-pow"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">1</text><text x="34" y="14" class="mono tprim" font-size="11">3V3</text><text x="105" y="14" font-size="11" class="tsec">Power</text></g>
+  <g transform="translate(0,48)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-pow"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">2</text><text x="34" y="14" class="mono tprim" font-size="11">3V3</text><text x="105" y="14" font-size="11" class="tsec">Power</text></g>
+  <g transform="translate(0,72)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-pow"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">3</text><text x="34" y="14" class="mono tprim" font-size="11">RST</text><text x="105" y="14" font-size="11" class="tsec">Reset (EN)</text></g>
+  <g transform="translate(0,96)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-disp"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">4</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO4</text><text x="105" y="14" font-size="11" class="tprim">Display 1 CLK</text></g>
+  <g transform="translate(0,120)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-disp"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">5</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO5</text><text x="105" y="14" font-size="11" class="tprim">Display 1 DIO</text></g>
+  <g transform="translate(0,144)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-disp"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">6</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO6</text><text x="105" y="14" font-size="11" class="tprim">Display 2 CLK</text></g>
+  <g transform="translate(0,168)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-disp"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">7</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO7</text><text x="105" y="14" font-size="11" class="tprim">Display 2 DIO</text></g>
+  <g transform="translate(0,192)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-disp"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">8</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO15</text><text x="105" y="14" font-size="11" class="tprim">Display 3 CLK</text></g>
+  <g transform="translate(0,216)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-disp"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">9</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO16</text><text x="105" y="14" font-size="11" class="tprim">Display 3 DIO</text></g>
+  <g transform="translate(0,240)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-disp"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">10</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO17</text><text x="105" y="14" font-size="11" class="tprim">Display 4 CLK</text></g>
+  <g transform="translate(0,264)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-disp"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">11</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO18</text><text x="105" y="14" font-size="11" class="tprim">Display 4 DIO</text></g>
+  <g transform="translate(0,288)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-tft"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">12</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO8</text><text x="105" y="14" font-size="11" class="tprim">TFT SCLK</text></g>
+  <g transform="translate(0,312)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-avoid"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">13</text><text x="34" y="14" class="mono tmuted" font-size="11">GPIO3</text><text x="105" y="14" font-size="11" font-style="italic" class="tmuted">avoid — strapping</text></g>
+  <g transform="translate(0,336)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-avoid"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">14</text><text x="34" y="14" class="mono tmuted" font-size="11">GPIO46</text><text x="105" y="14" font-size="11" font-style="italic" class="tmuted">avoid — strapping</text></g>
+  <g transform="translate(0,360)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-tft"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">15</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO9</text><text x="105" y="14" font-size="11" class="tprim">TFT MOSI</text></g>
+  <g transform="translate(0,384)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-tft"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">16</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO10</text><text x="105" y="14" font-size="11" class="tprim">TFT RST</text></g>
+  <g transform="translate(0,408)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-tft"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">17</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO11</text><text x="105" y="14" font-size="11" class="tprim">TFT DC</text></g>
+  <g transform="translate(0,432)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-tft"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">18</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO12</text><text x="105" y="14" font-size="11" class="tprim">TFT CS</text></g>
+  <g transform="translate(0,456)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-enc"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">19</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO13</text><text x="105" y="14" font-size="11" class="tprim">Encoder CLK</text></g>
+  <g transform="translate(0,480)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-enc"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">20</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO14</text><text x="105" y="14" font-size="11" class="tprim">Encoder DT</text></g>
+  <g transform="translate(0,504)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-pow"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">21</text><text x="34" y="14" class="mono tprim" font-size="11">5V</text><text x="105" y="14" font-size="11" class="tsec">Power</text></g>
+  <g transform="translate(0,528)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-pow"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">22</text><text x="34" y="14" class="mono tprim" font-size="11">GND</text><text x="105" y="14" font-size="11" class="tsec">Ground</text></g>
+
+  <rect x="0" y="24" width="350" height="524" fill="none" class="border" stroke-width="1"/>
+</g>
+
+<!-- J3 block -->
+<g transform="translate(470,80)">
+  <text x="0" y="0" font-size="13" font-weight="600" class="tprim">J3 header</text>
+  <text x="10" y="18" font-size="10" class="tmuted">POS</text>
+  <text x="34" y="18" font-size="10" class="tmuted">PIN</text>
+  <text x="105" y="18" font-size="10" class="tmuted">FUNCTION</text>
+
+  <g transform="translate(0,24)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-pow"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">1</text><text x="34" y="14" class="mono tprim" font-size="11">GND</text><text x="105" y="14" font-size="11" class="tsec">Ground</text></g>
+  <g transform="translate(0,48)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-sw"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">2</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO43</text><text x="105" y="14" font-size="11" class="tprim">Button switch P1</text></g>
+  <g transform="translate(0,72)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-sw"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">3</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO44</text><text x="105" y="14" font-size="11" class="tprim">Button switch P2</text></g>
+  <g transform="translate(0,96)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-sw"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">4</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO1</text><text x="105" y="14" font-size="11" class="tprim">Button switch P3</text></g>
+  <g transform="translate(0,120)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-sw"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">5</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO2</text><text x="105" y="14" font-size="11" class="tprim">Button switch P4</text></g>
+  <g transform="translate(0,144)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-light"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">6</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO42</text><text x="105" y="14" font-size="11" class="tprim">Button light Action</text></g>
+  <g transform="translate(0,168)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-light"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">7</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO41</text><text x="105" y="14" font-size="11" class="tprim">Button light P4</text></g>
+  <g transform="translate(0,192)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-light"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">8</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO40</text><text x="105" y="14" font-size="11" class="tprim">Button light P3</text></g>
+  <g transform="translate(0,216)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-light"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">9</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO39</text><text x="105" y="14" font-size="11" class="tprim">Button light P2</text></g>
+  <g transform="translate(0,240)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-light"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">10</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO38</text><text x="105" y="14" font-size="11" class="tprim">Button light P1</text></g>
+  <g transform="translate(0,264)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-avoid"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">11</text><text x="34" y="14" class="mono tmuted" font-size="11">GPIO37</text><text x="105" y="14" font-size="11" font-style="italic" class="tmuted">avoid — PSRAM</text></g>
+  <g transform="translate(0,288)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-avoid"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">12</text><text x="34" y="14" class="mono tmuted" font-size="11">GPIO36</text><text x="105" y="14" font-size="11" font-style="italic" class="tmuted">avoid — PSRAM</text></g>
+  <g transform="translate(0,312)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-avoid"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">13</text><text x="34" y="14" class="mono tmuted" font-size="11">GPIO35</text><text x="105" y="14" font-size="11" font-style="italic" class="tmuted">avoid — PSRAM</text></g>
+  <g transform="translate(0,336)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-avoid"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">14</text><text x="34" y="14" class="mono tmuted" font-size="11">GPIO0</text><text x="105" y="14" font-size="11" font-style="italic" class="tmuted">avoid — strapping</text></g>
+  <g transform="translate(0,360)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-avoid"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">15</text><text x="34" y="14" class="mono tmuted" font-size="11">GPIO45</text><text x="105" y="14" font-size="11" font-style="italic" class="tmuted">avoid — strapping</text></g>
+  <g transform="translate(0,384)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-avoid"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">16</text><text x="34" y="14" class="mono tmuted" font-size="11">GPIO48</text><text x="105" y="14" font-size="11" font-style="italic" class="tmuted">avoid — onboard RGB LED</text></g>
+  <g transform="translate(0,408)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-sw"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">17</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO47</text><text x="105" y="14" font-size="11" class="tprim">Button switch Action</text></g>
+  <g transform="translate(0,432)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-enc"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">18</text><text x="34" y="14" class="mono tprim" font-size="11">GPIO21</text><text x="105" y="14" font-size="11" class="tprim">Encoder SW</text></g>
+  <g transform="translate(0,456)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-avoid"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">19</text><text x="34" y="14" class="mono tmuted" font-size="11">GPIO20</text><text x="105" y="14" font-size="11" font-style="italic" class="tmuted">avoid — USB D-</text></g>
+  <g transform="translate(0,480)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-avoid"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">20</text><text x="34" y="14" class="mono tmuted" font-size="11">GPIO19</text><text x="105" y="14" font-size="11" font-style="italic" class="tmuted">avoid — USB D+</text></g>
+  <g transform="translate(0,504)"><rect width="350" height="20" class="bg1"/><rect width="4" height="20" class="c-pow"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">21</text><text x="34" y="14" class="mono tprim" font-size="11">GND</text><text x="105" y="14" font-size="11" class="tsec">Ground</text></g>
+  <g transform="translate(0,528)"><rect width="350" height="20" class="bg0"/><rect width="4" height="20" class="c-pow"/><text x="20" y="14" text-anchor="end" font-size="10" class="tmuted">22</text><text x="34" y="14" class="mono tprim" font-size="11">GND</text><text x="105" y="14" font-size="11" class="tsec">Ground</text></g>
+
+  <rect x="0" y="24" width="350" height="524" fill="none" class="border" stroke-width="1"/>
+</g>
+
+<!-- Legend -->
+<g transform="translate(40,720)">
+  <text x="0" y="-8" font-size="11" font-weight="600" class="tsec">Legend</text>
+  <g transform="translate(0,0)"><rect width="10" height="10" class="c-disp"/><text x="16" y="9" font-size="10" class="tsec">Numeric display</text></g>
+  <g transform="translate(140,0)"><rect width="10" height="10" class="c-tft"/><text x="16" y="9" font-size="10" class="tsec">TFT</text></g>
+  <g transform="translate(220,0)"><rect width="10" height="10" class="c-light"/><text x="16" y="9" font-size="10" class="tsec">Button light (out)</text></g>
+  <g transform="translate(0,24)"><rect width="10" height="10" class="c-sw"/><text x="16" y="9" font-size="10" class="tsec">Button switch (in)</text></g>
+  <g transform="translate(140,24)"><rect width="10" height="10" class="c-enc"/><text x="16" y="9" font-size="10" class="tsec">Encoder</text></g>
+  <g transform="translate(220,24)"><rect width="10" height="10" class="c-pow"/><text x="16" y="9" font-size="10" class="tsec">Power / ground</text></g>
+  <g transform="translate(0,48)"><rect width="10" height="10" class="c-avoid"/><text x="16" y="9" font-size="10" class="tsec">Avoid (strapping / PSRAM / USB / onboard LED)</text></g>
+</g>
+
+</svg>

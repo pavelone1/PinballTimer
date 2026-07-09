@@ -118,6 +118,10 @@ With these, every native GPIO on both headers is spoken for.
 `ESP32Encoder` is in `platformio.ini` lib_deps but not yet used in
 `main.cpp`.
 
+`docs/images/gpio-header-map.svg` — visual sketch of the full J1/J3
+header layout above, color-coded by signal group, for reference while
+soldering the prototype board.
+
 ## Firmware status
 `src/main.cpp` is currently a **hardware bring-up / demo sketch**, not the
 real timer logic. It exercises every output (TFT splash, color test,
