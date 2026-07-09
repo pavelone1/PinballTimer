@@ -126,3 +126,12 @@ custom PCB to host the ESP32 module and break out connectors for the
 buttons/displays/buzzer. It was generated before the pin table above was
 finalized and needs its nets updated to match before routing/ordering
 Gerbers from PCBWay.
+
+`docs/images/prototype-esp32-uln2803.jpeg` — photo of the physical
+prototype: the ESP32-S3 N16R8 module mounted on a perfboard prototyping
+shield, with the ULN2803A driver breakout socketed directly beneath it.
+The pin labels visible in the photo match the standard
+ESP32-S3-DevKitC-1 pinout assumed elsewhere in this doc and in the KiCad
+carrier-board project. Exact GPIO-to-ULN-channel wiring under the
+connector isn't fully confirmed from the photo alone — verify against the
+physical board before relying on it.
