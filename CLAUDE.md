@@ -99,20 +99,28 @@ way around.
 ## Planned pin assignments (not yet in src/main.cpp)
 Worked out to fit the ESP32-S3-DevKitC-1's two 22-pin headers (J1/J3)
 contiguously for solder-header prototyping — not yet written into code.
+Each button's switch and light are paired on adjacent header pins so a
+single 2-pin connector serves both, except Action (see note). This also
+moves some button light GPIOs from what src/main.cpp currently uses.
 Buzzer intentionally left unassigned/unwired for now. VCC/GND rail
 routing on the prototype board is handled separately, not via these
 signal pins.
 
-| Signal | GPIO | Header position |
-|--------|------|------------------|
-| Button switch P1 | 43 | J3 pos 2 |
-| Button switch P2 | 44 | J3 pos 3 |
-| Button switch P3 | 1 | J3 pos 4 |
-| Button switch P4 | 2 | J3 pos 5 |
-| Button switch Action | 47 | J3 pos 17 |
-| Encoder CLK | 13 | J1 pos 19 |
-| Encoder DT | 14 | J1 pos 20 |
-| Encoder SW | 21 | J3 pos 18 |
+| Signal | GPIO | Header position | Change from current main.cpp |
+|--------|------|------------------|-------------------------------|
+| Button switch P1 | 43 | J3 pos 2 | new |
+| Button light P1 | 44 | J3 pos 3 | moved from GPIO38 |
+| Button switch P2 | 1 | J3 pos 4 | new |
+| Button light P2 | 2 | J3 pos 5 | moved from GPIO39 |
+| Button switch P3 | 41 | J3 pos 7 | new |
+| Button light P3 | 42 | J3 pos 6 | moved from GPIO40 |
+| Button switch P4 | 39 | J3 pos 9 | new |
+| Button light P4 | 40 | J3 pos 8 | moved from GPIO41 |
+| Button switch Action | 47 | J3 pos 17 | new |
+| Button light Action | 38 | J3 pos 10 | moved from GPIO42; not adjacent to its switch |
+| Encoder CLK | 13 | J1 pos 19 | new |
+| Encoder DT | 14 | J1 pos 20 | new |
+| Encoder SW | 21 | J3 pos 18 | new |
 
 With these, every native GPIO on both headers is spoken for.
 `ESP32Encoder` is in `platformio.ini` lib_deps but not yet used in
