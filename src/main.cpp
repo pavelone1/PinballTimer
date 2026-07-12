@@ -8,17 +8,17 @@
 // Four TM1637 displays
 // ----------------------------------------------------
 
-constexpr uint8_t DISPLAY_1_CLK = 4;
-constexpr uint8_t DISPLAY_1_DIO = 5;
+constexpr uint8_t DISPLAY_1_CLK = 40;
+constexpr uint8_t DISPLAY_1_DIO = 39;
 
-constexpr uint8_t DISPLAY_2_CLK = 6;
-constexpr uint8_t DISPLAY_2_DIO = 7;
+constexpr uint8_t DISPLAY_2_CLK = 9;
+constexpr uint8_t DISPLAY_2_DIO = 10;
 
-constexpr uint8_t DISPLAY_3_CLK = 15;
-constexpr uint8_t DISPLAY_3_DIO = 16;
+constexpr uint8_t DISPLAY_3_CLK = 13;
+constexpr uint8_t DISPLAY_3_DIO = 14;
 
-constexpr uint8_t DISPLAY_4_CLK = 17;
-constexpr uint8_t DISPLAY_4_DIO = 18;
+constexpr uint8_t DISPLAY_4_CLK = 47;
+constexpr uint8_t DISPLAY_4_DIO = 21;
 
 TM1637Display timerDisplays[] = {
     TM1637Display(DISPLAY_1_CLK, DISPLAY_1_DIO),
@@ -33,11 +33,11 @@ constexpr uint8_t DISPLAY_COUNT = 4;
 // ST7789 TFT
 // ----------------------------------------------------
 
-constexpr uint8_t TFT_SCLK = 8;
-constexpr uint8_t TFT_MOSI = 9;
-constexpr uint8_t TFT_RST  = 10;
-constexpr uint8_t TFT_DC   = 11;
-constexpr uint8_t TFT_CS   = 12;
+constexpr uint8_t TFT_SCLK = 43;
+constexpr uint8_t TFT_MOSI = 44;
+constexpr uint8_t TFT_RST  = 1;
+constexpr uint8_t TFT_DC   = 2;
+constexpr uint8_t TFT_CS   = 42;
 
 Adafruit_ST7789 tft(TFT_CS, TFT_DC, TFT_RST);
 
@@ -48,11 +48,11 @@ Adafruit_ST7789 tft(TFT_CS, TFT_DC, TFT_RST);
 // ----------------------------------------------------
 
 constexpr uint8_t BUTTON_LIGHTS[] = {
-    38, // Player 1, ULN 2B
-    39, // Player 2, ULN 3B
-    40, // Player 3, ULN 4B
-    41, // Player 4, ULN 5B
-    42  // Control,  ULN 6B
+    5,  // Player 1
+    7,  // Player 2
+    15, // Player 3
+    17, // Player 4
+    8   // Control
 };
 
 constexpr uint8_t LIGHT_COUNT = 5;

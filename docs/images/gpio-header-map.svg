@@ -32,7 +32,7 @@
 <rect x="0" y="0" width="860" height="800" class="bg0"/>
 
 <text x="430" y="34" text-anchor="middle" font-size="20" font-weight="600" class="tprim">ESP32-S3-DevKitC-1 Header Pin Map</text>
-<text x="430" y="54" text-anchor="middle" font-size="12" class="tsec">PinballTimer prototype — J1 (left) and J3 (right), physical top-to-bottom order</text>
+<text x="430" y="54" text-anchor="middle" font-size="12" class="tsec">PinballTimer prototype — J1 (left) and J3 (right), physical top-to-bottom order. Displays/TFT/lights are live in src/main.cpp; switches/encoder are still planned.</text>
 
 <!-- J1 block -->
 <g transform="translate(40,80)">

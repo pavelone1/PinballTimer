@@ -75,34 +75,35 @@ rotary encoder is separately used for mode selection/control (see below).
   heat-set brass inserts so it can be reopened for repairs.
 
 ## Current pin assignments (as actually wired in src/main.cpp)
-These are the real, working pins — treat any earlier PCB/schematic file
-that disagrees with this list as stale and needing a sync, not the other
-way around.
+These are the pins currently in code, remapped for the new solder
+prototype board (buttons on J1, TFT on J3 — see the swap decided
+below). Unlike the original 4/5/6/7... layout, this specific pin set
+has not yet been physically verified on hardware — treat it as
+code-correct but hardware-unconfirmed until the new board is tested.
+Treat any earlier PCB/schematic file that disagrees with this list as
+stale and needing a sync, not the other way around.
 
 | Signal              | GPIO |
 |----------------------|------|
-| Display 1 CLK / DIO  | 4 / 5 |
-| Display 2 CLK / DIO  | 6 / 7 |
-| Display 3 CLK / DIO  | 15 / 16 |
-| Display 4 CLK / DIO  | 17 / 18 |
-| TFT SCLK             | 8 |
-| TFT MOSI             | 9 |
-| TFT RST              | 10 |
-| TFT DC               | 11 |
-| TFT CS               | 12 |
-| Button light P1 (ULN 2B) | 38 |
-| Button light P2 (ULN 3B) | 39 |
-| Button light P3 (ULN 4B) | 40 |
-| Button light P4 (ULN 5B) | 41 |
-| Button light Action (ULN 6B) | 42 |
+| Display 1 CLK / DIO  | 40 / 39 |
+| Display 2 CLK / DIO  | 9 / 10 |
+| Display 3 CLK / DIO  | 13 / 14 |
+| Display 4 CLK / DIO  | 47 / 21 |
+| TFT SCLK             | 43 |
+| TFT MOSI             | 44 |
+| TFT RST              | 1 |
+| TFT DC               | 2 |
+| TFT CS               | 42 |
+| Button light P1      | 5 |
+| Button light P2      | 7 |
+| Button light P3      | 15 |
+| Button light P4      | 17 |
+| Button light Action  | 8 |
 
 ## Planned pin assignments (not yet in src/main.cpp)
-Superseded and reworked again: buttons and TFT swapped which header
-they live on (buttons now on J1, TFT now on J3) to shorten wiring runs,
-with displays/encoder filling in around them. This table replaces the
-"Current pin assignments" table above for the next board revision —
-`src/main.cpp` still reflects the old (breadboard-confirmed) layout
-until this is implemented in code.
+Everything else (displays, TFT, button lights) has been remapped into
+code above. Still not implemented: the button switch inputs and the
+rotary encoder.
 
 | Signal | GPIO |
 |--------|------|
@@ -111,20 +112,6 @@ until this is implemented in code.
 | Button switch P3 | 16 |
 | Button switch P4 | 18 |
 | Button switch Action | 19 |
-| Button light P1 | 5 |
-| Button light P2 | 7 |
-| Button light P3 | 15 |
-| Button light P4 | 17 |
-| Button light Action | 8 |
-| TFT SCLK | 43 |
-| TFT MOSI | 44 |
-| TFT RST | 1 |
-| TFT DC | 2 |
-| TFT CS | 42 |
-| Display 1 CLK / DIO | 40 / 39 |
-| Display 2 CLK / DIO | 9 / 10 |
-| Display 3 CLK / DIO | 13 / 14 |
-| Display 4 CLK / DIO | 47 / 21 |
 | Encoder CLK | 11 |
 | Encoder DT | 12 |
 | Encoder SW | 41 |
