@@ -24,6 +24,12 @@ public:
     void fillScreen(ColorId color);
     void drawCenteredText(const char* text, int16_t y, uint8_t textSize, ColorId color);
 
+    // Puts the panel into sleep + display-off mode (real ST7789
+    // commands, not just a black fill) for power saving. wake()
+    // reverses it and forces the next showStatusScreen() to redraw.
+    void sleep();
+    void wake();
+
     void showStatusScreen(
         const char* title,
         const char* const* lines,

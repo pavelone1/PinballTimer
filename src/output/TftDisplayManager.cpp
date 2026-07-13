@@ -26,6 +26,20 @@ void TftDisplayManager::update()
     // for when animated/blinking screens are actually needed.
 }
 
+void TftDisplayManager::sleep()
+{
+    tft_.sendCommand(ST77XX_DISPOFF);
+    tft_.sendCommand(ST77XX_SLPIN);
+}
+
+void TftDisplayManager::wake()
+{
+    tft_.sendCommand(ST77XX_SLPOUT);
+    delay(120); // panel needs time to stabilize after sleep-out, per ST7789 datasheet
+    tft_.sendCommand(ST77XX_DISPON);
+    hasCachedScreen_ = false;
+}
+
 void TftDisplayManager::fillScreen(ColorId color)
 {
     tft_.fillScreen(colorFor(color));
