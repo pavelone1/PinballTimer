@@ -1,5 +1,7 @@
 #include "modes/Mode1RoundRobin.h"
 
+#include <cstring>
+
 const char* Mode1RoundRobin::name() const
 {
     return "Round Robin";
@@ -100,6 +102,29 @@ void Mode1RoundRobin::onPause(GameModeContext& context)
     if (roundStarted_) {
         context.timers.stop(playerTimerIds_[activePlayerIndex_]);
     }
+}
+
+void Mode1RoundRobin::onResume(GameModeContext& context)
+{
+    if (roundStarted_) {
+        context.timers.start(playerTimerIds_[activePlayerIndex_]);
+    }
+}
+
+bool Mode1RoundRobin::setModeOption(const char* key, long value)
+{
+    if (strcmp(key, "secondsPerTurn") == 0) {
+        setSecondsPerTurn(value);
+        return true;
+    }
+
+    return false;
+}
+
+bool Mode1RoundRobin::allowsRemoteCommand(uint8_t commandId) const
+{
+    (void)commandId;
+    return true;
 }
 
 void Mode1RoundRobin::onStop(GameModeContext& context)

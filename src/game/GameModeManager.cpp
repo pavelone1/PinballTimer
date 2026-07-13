@@ -121,6 +121,14 @@ void GameModeManager::notifyPause()
     }
 }
 
+void GameModeManager::notifyResume()
+{
+    if (activeMode_ != nullptr && context_ != nullptr) {
+        activeMode_->onResume(*context_);
+        paused_ = false;
+    }
+}
+
 void GameModeManager::notifyStop()
 {
     if (activeMode_ != nullptr && context_ != nullptr) {

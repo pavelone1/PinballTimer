@@ -47,10 +47,20 @@ public:
 
     void update(GameModeContext& context) override;
     void onPause(GameModeContext& context) override;
+    void onResume(GameModeContext& context) override;
     void onStop(GameModeContext& context) override;
     void onReset(GameModeContext& context) override;
 
     void onButtonEvent(GameModeContext& context, const ButtonEvent& event) override;
+
+    // Recognizes "secondsPerTurn" (1-5999).
+    bool setModeOption(const char* key, long value) override;
+
+    // Allows every remote command unconditionally. This is a
+    // placeholder judgment call (remote/director control is in scope
+    // per earlier discussion, but which specific commands Mode 1
+    // should permit was never itemized) -- narrow it if needed.
+    bool allowsRemoteCommand(uint8_t commandId) const override;
 
 private:
     static constexpr uint8_t MAX_MODE_PLAYERS = 4;

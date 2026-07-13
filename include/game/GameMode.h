@@ -53,15 +53,22 @@ public:
     virtual void onFirstTimerStart(GameModeContext& context) {}
     virtual void update(GameModeContext& context) {}
     virtual void onPause(GameModeContext& context) {}
+    virtual void onResume(GameModeContext& context) {}
     virtual void onStop(GameModeContext& context) {}
     virtual void onReset(GameModeContext& context) {}
 
     virtual void onButtonEvent(GameModeContext& context, const ButtonEvent& event) {}
     virtual void onEncoderEvent(GameModeContext& context, const EncoderEvent& event) {}
 
-    // Network/remote hooks. The network subsystem doesn't exist yet;
-    // these are opaque hooks (commandId has no concrete meaning yet)
-    // for when it does. Default: reject everything, no-op on loss.
+    // Generic named-option setter for DirectorControl's "set mode
+    // options" command. A mode overrides this to handle whichever
+    // option names it defines (e.g. Mode1RoundRobin handles
+    // "secondsPerTurn"). Returns false for an unrecognized key.
+    virtual bool setModeOption(const char* key, long value) { return false; }
+
+    // Network/remote hooks. commandId is a DirectorCommandType cast to
+    // uint8_t (see network/RemoteCommand.h). Default: reject
+    // everything, no-op on loss -- a mode opts in explicitly.
     virtual bool allowsRemoteCommand(uint8_t commandId) const { return false; }
     virtual void onNetworkLost(GameModeContext& context) {}
 };

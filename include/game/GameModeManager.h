@@ -41,6 +41,7 @@ public:
     void notifyGameStart();
     void notifyFirstTimerStart();
     void notifyPause();
+    void notifyResume();
     void notifyStop();
     void notifyReset();
 
