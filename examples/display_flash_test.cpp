@@ -1,10 +1,15 @@
 #include <Arduino.h>
+#include <SPI.h>
 #include <TM1637Display.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7789.h>
 
-// Standalone diagnostic sketch: each display cycles its own digit
-// repeated N times (display 1 -> 1,11,111,1111; display 2 ->
+// Standalone diagnostic sketch: each TM1637 display cycles its own
+// digit repeated N times (display 1 -> 1,11,111,1111; display 2 ->
 // 2,22,222,2222; etc.) so each can be identified and compared at a
-// glance. Build/upload with: pio run -e display-test -t upload
+// glance. The TFT cycles through colors and shows the current step
+// so it can be checked alongside the numeric displays.
+// Build/upload with: pio run -e display-test -t upload
 // Does not touch src/main.cpp or its pin assignments.
 
 constexpr uint8_t DISPLAY_1_CLK = 40;
@@ -28,8 +33,23 @@ TM1637Display timerDisplays[] = {
 
 constexpr uint8_t DISPLAY_COUNT = 4;
 
+constexpr uint8_t TFT_SCLK = 43;
+constexpr uint8_t TFT_MOSI = 44;
+constexpr uint8_t TFT_RST  = 1;
+constexpr uint8_t TFT_DC   = 2;
+constexpr uint8_t TFT_CS   = 42;
+
+Adafruit_ST7789 tft(TFT_CS, TFT_DC, TFT_RST);
+
 constexpr uint8_t PATTERN_LENGTH = 4;
 constexpr unsigned long STEP_DELAY_MS = 700;
+
+const uint16_t STEP_COLORS[PATTERN_LENGTH] = {
+    ST77XX_RED,
+    ST77XX_YELLOW,
+    ST77XX_GREEN,
+    ST77XX_CYAN
+};
 
 int patternValueFor(uint8_t displayIndex, uint8_t step)
 {
@@ -43,6 +63,43 @@ int patternValueFor(uint8_t displayIndex, uint8_t step)
     return value;
 }
 
+void drawCenteredText(
+    const char* text,
+    int16_t y,
+    uint8_t textSize,
+    uint16_t color
+)
+{
+    int16_t x1;
+    int16_t y1;
+    uint16_t width;
+    uint16_t height;
+
+    tft.setTextSize(textSize);
+    tft.setTextColor(color);
+    tft.setTextWrap(false);
+
+    tft.getTextBounds(text, 0, y, &x1, &y1, &width, &height);
+
+    const int16_t x =
+        (static_cast<int16_t>(tft.width()) -
+         static_cast<int16_t>(width)) / 2;
+
+    tft.setCursor(x, y);
+    tft.print(text);
+}
+
+void showTftStep(uint8_t step)
+{
+    tft.fillScreen(STEP_COLORS[step]);
+
+    drawCenteredText("TFT TEST", 40, 3, ST77XX_BLACK);
+
+    char stepText[16];
+    snprintf(stepText, sizeof(stepText), "STEP %u/%u", step + 1, PATTERN_LENGTH);
+    drawCenteredText(stepText, 100, 3, ST77XX_BLACK);
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -53,7 +110,12 @@ void setup()
         timerDisplays[i].clear();
     }
 
-    Serial.println("Display flash test started");
+    SPI.begin(TFT_SCLK, -1, TFT_MOSI, TFT_CS);
+    tft.init(240, 320);
+    tft.setRotation(1);
+    tft.fillScreen(ST77XX_BLACK);
+
+    Serial.println("Display + TFT flash test started");
 }
 
 void loop()
@@ -66,6 +128,9 @@ void loop()
 
             timerDisplays[i].showNumberDec(value, false);
         }
+
+        Serial.printf("TFT showing step %u\n", step + 1);
+        showTftStep(step);
 
         delay(STEP_DELAY_MS);
     }
