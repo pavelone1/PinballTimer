@@ -11,14 +11,14 @@
 // - A player taps their OWN button to end their turn; the timer
 //   advances to the next player and resets their countdown.
 // - Zero-crossing: CLAUDE.md flagged "what happens at zero" as TBD.
-//   This mode uses allowBelowZero=true on each player's timer (see
-//   TimerManager), so time keeps counting past zero as negative
-//   overtime rather than auto-advancing -- NumericDisplayManager
-//   automatically shows that as the magnitude flashing rapidly. This
-//   means turns do NOT auto-advance at zero; only the player's own
-//   button press advances the turn. That is an inference from the
-//   negative-time display behavior already confirmed, not something
-//   independently re-confirmed for this mode -- flag if wrong.
+//   PENDING RULE CHANGE (not yet implemented, discuss after all
+//   modules are built): the user has indicated that once a
+//   countdown reaches zero, the player is required to stop -- the
+//   (future) buzzer sounds and the timer ceases, rather than
+//   counting into negative overtime. Current code still uses
+//   allowBelowZero=true (counts negative, flashes) as a placeholder;
+//   this needs to change to stopAtZero-style behavior plus a buzzer
+//   trigger once that discussion happens.
 // - secondsPerTurn defaults to 30s here as a placeholder; CLAUDE.md
 //   doesn't specify a default (only the 5999s / 99:59 cap), so this
 //   should be treated as provisional until set explicitly (e.g. by a
