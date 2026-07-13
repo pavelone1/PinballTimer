@@ -50,7 +50,7 @@ void GameModeManager::initializeActiveMode()
         return;
     }
 
-    activeMode_->setupAssignments(*context_);
+    activeMode_->setupAssignments(*context_, playerCount_);
     initialized_ = true;
 }
 

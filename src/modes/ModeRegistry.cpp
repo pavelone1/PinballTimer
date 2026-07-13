@@ -2,11 +2,11 @@
 
 namespace ModeRegistry {
 
+Mode1RoundRobin mode1RoundRobin;
+
 void registerAllModes(GameModeManager& manager)
 {
-    (void)manager;
-    // No concrete modes exist yet -- the first one (Mode 1, per
-    // CLAUDE.md) is registered here as soon as it's built.
+    manager.registerMode(&mode1RoundRobin);
 }
 
 } // namespace ModeRegistry

@@ -44,7 +44,8 @@ public:
 
     // Called once when this mode becomes active, before any start.
     // Sets up player/button/display/timer assignments for the mode.
-    virtual void setupAssignments(GameModeContext& context) = 0;
+    // playerCount has already been validated against min/maxPlayers.
+    virtual void setupAssignments(GameModeContext& context, uint8_t playerCount) = 0;
 
     virtual void onLocalStart(GameModeContext& context) {}
     virtual void onRemoteStart(GameModeContext& context) {}
