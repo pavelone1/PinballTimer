@@ -4,11 +4,12 @@
 #include <cstring>
 #include "network/StatusReporter.h"
 
-void DirectorControl::begin(GameModeManager& modeManager, GameModeContext& context, StatusReporter& statusReporter)
+void DirectorControl::begin(GameModeManager& modeManager, GameModeContext& context, StatusReporter& statusReporter, PowerManager& power)
 {
     modeManager_ = &modeManager;
     context_ = &context;
     statusReporter_ = &statusReporter;
+    power_ = &power;
     localControlsLocked_ = false;
 
     server_.on("/status", HTTP_GET, [this]() { handleStatusRoute(); });
@@ -118,6 +119,10 @@ void DirectorControl::handleCommandRoute()
     command.intValue = static_cast<uint8_t>(server_.arg("intValue").toInt());
     server_.arg("stringKey").toCharArray(command.stringKey, sizeof(command.stringKey));
     command.longValue = server_.arg("longValue").toInt();
+
+    if (command.type != DirectorCommandType::RequestFullStatus) {
+        power_->notifyActivity();
+    }
 
     const DirectorCommandResult result = execute(command);
 

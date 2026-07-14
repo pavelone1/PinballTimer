@@ -4,6 +4,7 @@
 #include "game/GameModeManager.h"
 #include "game/GameMode.h"
 #include "network/RemoteCommand.h"
+#include "power/PowerManager.h"
 
 class StatusReporter; // forward-declared to avoid a circular include with StatusReporter.h
 
@@ -19,13 +20,19 @@ class StatusReporter; // forward-declared to avoid a circular include with Statu
 // may be no active mode yet), LockLocalControls/UnlockLocalControls,
 // and RequestFullStatus, which are always allowed.
 //
+// Any command via POST /command other than RequestFullStatus wakes
+// PowerManager from standby ("wake from remote command" per the
+// architecture doc). GET /status does NOT wake it -- a director
+// dashboard polling status every few seconds would otherwise defeat
+// standby entirely.
+//
 // This concrete HTTP API shape (paths, field names, port 80) is a
 // judgment call made when building this class -- there was no
 // existing spec or director-side client to match, so this IS the
 // spec going forward unless changed.
 class DirectorControl {
 public:
-    void begin(GameModeManager& modeManager, GameModeContext& context, StatusReporter& statusReporter);
+    void begin(GameModeManager& modeManager, GameModeContext& context, StatusReporter& statusReporter, PowerManager& power);
     void update();
 
     DirectorCommandResult execute(const DirectorCommand& command);
@@ -35,6 +42,7 @@ private:
     GameModeManager* modeManager_ = nullptr;
     GameModeContext* context_ = nullptr;
     StatusReporter* statusReporter_ = nullptr;
+    PowerManager* power_ = nullptr;
     WebServer server_;
     bool localControlsLocked_ = false;
 

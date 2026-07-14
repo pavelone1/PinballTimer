@@ -39,10 +39,9 @@ void App::begin()
     ModeRegistry::registerAllModes(gameModeManager_);
 
     network_.begin(settings_.wifiSsid(), settings_.wifiPassword());
-    statusReporter_.begin(gameModeManager_, players_, displayAssignments_, timers_, network_, settings_, directorControl_);
-    directorControl_.begin(gameModeManager_, context_, statusReporter_);
-
     power_.begin(context_);
+    statusReporter_.begin(gameModeManager_, players_, displayAssignments_, timers_, network_, settings_, directorControl_);
+    directorControl_.begin(gameModeManager_, context_, statusReporter_, power_);
 
     // Resume the last-used mode (if any) with its default player
     // count. There is no config UI yet to pick a mode/count

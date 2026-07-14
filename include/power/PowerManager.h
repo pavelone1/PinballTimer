@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include "game/GameMode.h"
-#include "network/NetworkManager.h"
 
 enum class PowerState : uint8_t {
     Active,
