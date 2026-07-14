@@ -212,6 +212,19 @@ Run any of them with `pio run -e <name> -t upload`. Board config
 `BOARD_HAS_PSRAM`) is shared via the default env; the others `extends`
 it.
 
+## Unit tests
+`test/` has native (host machine, no ESP32/board needed) tests for the
+pure-logic modules with zero Arduino/hardware dependency:
+`PlayerManager`, `ButtonAssignmentManager`, `DisplayAssignmentManager`.
+`TimerManager` is deliberately NOT covered here — it calls `millis()`
+directly, and injecting a mockable clock into production code just for
+testability wasn't asked for.
+
+Run with `pio test -e native`. Requires a host C/C++ compiler on PATH
+(this machine didn't have one — installed WinLibs MinGW-w64 via
+`winget install BrechtSanders.WinLibs.POSIX.UCRT` to get `gcc`/`g++`).
+21 test cases, all passing as of the last run.
+
 ## Related files
 A KiCad carrier-board project exists (separate from this repo) for a
 custom PCB to host the ESP32 module and break out connectors for the
