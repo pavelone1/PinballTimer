@@ -43,12 +43,19 @@ void App::begin()
     statusReporter_.begin(gameModeManager_, players_, displayAssignments_, timers_, network_, settings_, directorControl_);
     directorControl_.begin(gameModeManager_, context_, statusReporter_, power_);
 
-    // Resume the last-used mode (if any) with its default player
-    // count. There is no config UI yet to pick a mode/count
-    // otherwise, so this is the only selection path until one exists.
+    // Resume the last-used mode, or default to Mode 1 (the only mode
+    // that exists) if none was saved yet. There is no config UI or
+    // on-device mode-selection menu to pick a mode/count otherwise,
+    // so this is the only selection path until one exists. Must call
+    // initializeActiveMode() here -- without it, setupAssignments()
+    // never runs, so the local Action-button start flow would
+    // silently do nothing (no timers/assignments would exist).
     const uint8_t lastMode = settings_.lastSelectedMode();
-    if (lastMode != 0 && gameModeManager_.selectMode(lastMode)) {
+    const uint8_t modeToSelect = lastMode != 0 ? lastMode : Mode1RoundRobin::MODE_ID;
+
+    if (gameModeManager_.selectMode(modeToSelect)) {
         gameModeManager_.setPlayerCount(gameModeManager_.activeMode()->defaultPlayerCount());
+        gameModeManager_.initializeActiveMode();
     }
 
     state_ = SystemState::Setup;
