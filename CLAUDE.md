@@ -100,10 +100,10 @@ stale and needing a sync, not the other way around.
 | Button light P4      | 17 |
 | Button light Action  | 8 |
 
-## Planned pin assignments (not yet in src/main.cpp)
-Everything else (displays, TFT, button lights) has been remapped into
-code above. Still not implemented: the button switch inputs and the
-rotary encoder.
+## Button switch / encoder pin assignments
+Not read by `src/main.cpp` (the demo sketch never reads inputs), but
+implemented in the real firmware (see "Firmware architecture" below)
+via `HardwarePins.h`, `ButtonInput`, and `EncoderInput`.
 
 | Signal | GPIO |
 |--------|------|
@@ -116,38 +116,101 @@ rotary encoder.
 | Encoder DT | 12 |
 | Encoder SW | 41 |
 
-**Spare:** GPIO38 — free for the buzzer if it comes back in.
+**Spare:** GPIO38 — free for the buzzer once it's wired.
 
 **Caveat:** GPIO19 (Button switch Action) shares the net with this
 board's native USB D− line. Using it as a button input may interact
 with USB flashing/serial depending on the external wiring — accepted
 as a tradeoff, not yet field-tested.
 
-`ESP32Encoder` is in `platformio.ini` lib_deps but not yet used in
-`main.cpp`.
-
 `docs/images/gpio-header-map.svg` — visual sketch of the full J1/J3
 header layout above, color-coded by signal group, for reference while
 soldering the prototype board.
 
 ## Firmware status
-`src/main.cpp` is currently a **hardware bring-up / demo sketch**, not the
-real timer logic. It exercises every output (TFT splash, color test,
-button-light chase, per-player display/color show, a countdown output
-demo, a flashing finale) to confirm the hardware works together. It does
-NOT yet:
-- Read any button presses (inputs).
-- Use the rotary encoder.
-- Implement the actual round-robin turn logic, countdown state machine,
-  or the WiFi config page.
+Two separate things now exist in this repo:
 
-Building the real firmware means adding all of the above on top of this
-verified-working output layer — the display/TFT/LED driving code here is
-already proven and can be reused as-is.
+- **`src/main.cpp`** — still the original **hardware bring-up / demo
+  sketch** (TFT splash, color test, button-light chase, countdown
+  output demo). Deliberately left untouched throughout the module
+  build-out below, per earlier direction. Does not read any inputs.
+- **The real firmware** — see "Firmware architecture" below. Builds
+  and links clean (`pio run -e app`), but has not been flashed to
+  actual hardware yet — treat it as code-correct/build-verified only
+  until tested on the board.
+
+## Firmware architecture
+Built module-by-module following the layered structure in the
+project's architecture plan (App → GameMode → Managers → Hardware
+drivers). Lives under `include/`/`src/` in the same subfolders as
+`main.cpp`, but is excluded from the default build; it has its own
+PlatformIO environment (`app`) with its own tiny entry point at
+`examples/app_main.cpp`, so it never touches or replaces `main.cpp`.
+
+- `App` — central coordinator. Owns every subsystem below, calls each
+  one's `update()` every loop, routes input events to the active game
+  mode, tracks `SystemState` (re-derived each tick from
+  `GameModeManager`/`PowerManager`, not decided by App itself). Never
+  enters an `Error` state — no concrete error conditions are defined
+  anywhere yet.
+- **Input:** `ButtonInput`, `EncoderInput` — debounced polling,
+  pressed/released/short/long-press event queues.
+- **Output:** `NumericDisplayManager` (the 4 TM1637s — see "Zero
+  crossing" below for the negative-time behavior it implements),
+  `TftDisplayManager` (generic `showStatusScreen()`, plus real
+  ST7789 `sleep()`/`wake()` commands), `ButtonLightManager` (base
+  state + priority temporary overrides, digital on/off only — no PWM
+  brightness, the hardware doesn't support it).
+- **Game:** `TimerManager` (generic count engine, independent of
+  players/displays), `PlayerManager`, `ButtonAssignmentManager` /
+  `DisplayAssignmentManager` (what each physical button/display
+  currently represents), `GameMode` interface + `GameModeManager` +
+  `ModeRegistry`.
+- **Modes:** `Mode1RoundRobin` — the actual CLAUDE.md Mode 1 rules.
+  **Zero-crossing rule change still pending** (see below) — currently
+  implements `allowBelowZero=true` (counts negative, flashes) as a
+  placeholder, not the "stop at zero + buzzer" behavior that was
+  requested but deferred until all modules are built.
+- **Storage:** `SettingsStorage`, `GameStorage` — ESP32 `Preferences`
+  (NVS), no new library dependency. "Saved presets" and per-timer
+  custom values are NOT implemented (no concrete format designed).
+- **Network:** `NetworkManager` (WiFi connect/reconnect/standby),
+  `DirectorControl` + `StatusReporter` + `RemoteCommand` — HTTP REST
+  via ESP32's built-in `WebServer` (no extra library). `GET /status`
+  returns hand-built JSON; `POST /command` takes form-encoded
+  `type`/`intValue`/`stringKey`/`longValue` fields (command type names
+  and full semantics documented in `include/network/DirectorControl.h`
+  and `include/network/RemoteCommand.h`). This concrete API shape was
+  a judgment call — no existing spec or director client to match, so
+  it's the de facto spec now unless changed.
+- **Power:** `PowerManager` — idle-timeout standby that blanks the
+  TFT/displays/lights but never puts the ESP32 itself into light/deep
+  sleep, so remote (WiFi/HTTP) control stays reachable throughout.
+  Battery monitoring not implemented (no ADC pin assigned yet).
+
+**Zero-crossing / what happens at zero (still open):** the user
+indicated the real intended behavior is that once a countdown reaches
+zero, the player is required to stop — a future buzzer sounds and the
+timer ceases (no counting into negative overtime) — but asked to
+finalize game rules after all modules were built. That discussion
+hasn't happened yet. `Mode1RoundRobin` and `NumericDisplayManager`
+still implement the earlier placeholder (negative overtime + rapid
+flash); this needs revisiting.
 
 ## Build
-PlatformIO, `env:esp32-s3-devkitc-1`, Arduino framework. 16MB flash,
-`default_16MB.csv` partitions, PSRAM enabled (`qio_opi`, `BOARD_HAS_PSRAM`).
+PlatformIO. Four environments, all in `platformio.ini`:
+
+| Environment | What it builds | Touches main.cpp? |
+|---|---|---|
+| `esp32-s3-devkitc-1` (default) | `src/main.cpp`, the hardware bring-up demo | yes, this *is* main.cpp |
+| `display-test` | `examples/display_flash_test.cpp` — per-display digit + TFT color test | no |
+| `full-io-test` | `examples/full_io_test.cpp` — every wired input/output, no buzzer | no |
+| `app` | The real firmware (`App` + all managers) via `examples/app_main.cpp` | no |
+
+Run any of them with `pio run -e <name> -t upload`. Board config
+(16MB flash, `default_16MB.csv` partitions, PSRAM `qio_opi`,
+`BOARD_HAS_PSRAM`) is shared via the default env; the others `extends`
+it.
 
 ## Related files
 A KiCad carrier-board project exists (separate from this repo) for a
