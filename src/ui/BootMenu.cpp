@@ -4,7 +4,7 @@
 #include <cstring>
 #include "FeatureFlags.h"
 #include "ui/ScrollList.h"
-#include "modes/Mode1RoundRobin.h"
+#include "modes/round_robin/Mode1RoundRobin.h"
 
 void BootMenu::begin(
     GameModeManager& modeManager,
@@ -108,6 +108,10 @@ MenuHandoff BootMenu::handleEncoderEvent(const EncoderEvent& event)
             handleModeSelectEncoder(event, outcome);
             break;
 
+        case State::ModeOwnedConfig:
+            handleModeOwnedConfigEncoder(event, outcome);
+            break;
+
         case State::ModeMenu:
             handleModeMenuEncoder(event, outcome);
             break;
@@ -170,6 +174,7 @@ void BootMenu::handleTopMenuEncoder(const EncoderEvent& event, MenuHandoff& outc
 
             case TopItem::PlayerInfo:
                 playerSelectedIndex_ = 0;
+                playerSetupReturnsToMode_ = false;
                 state_ = State::PlayerList;
                 render();
                 break;
@@ -206,16 +211,58 @@ void BootMenu::handleModeSelectEncoder(const EncoderEvent& event, MenuHandoff& o
     } else if (event.type == EncoderEventType::SwShortPress) {
         GameMode* mode = modeManager_->modeAt(modeSelectedIndex_);
         if (mode != nullptr) {
-            // Select only -- ModeMenu decides Start vs Config vs back.
-            // Doesn't start anything (no setPlayerCount()/
-            // initializeActiveMode()), same as the old ModeConfig
-            // top-item's fallback selectMode() call used to.
             modeManager_->selectMode(mode->id());
-            refreshModeMenuItems();
-            modeMenuSelectedIndex_ = 0;
-            state_ = State::ModeMenu;
+            mode->openConfigMenu(*machineCatalog_);
+            state_ = State::ModeOwnedConfig;
             render();
         }
+    }
+}
+
+void BootMenu::handleModeOwnedConfigEncoder(
+    const EncoderEvent& event, MenuHandoff& outcome)
+{
+    GameMode* mode = modeManager_->activeMode();
+    if (mode == nullptr) {
+        state_ = State::ModeSelect;
+        render();
+        return;
+    }
+
+    const ModeConfigMenuOutcome result = mode->handleConfigMenuEvent(event);
+    switch (result) {
+        case ModeConfigMenuOutcome::None:
+            render();
+            break;
+        case ModeConfigMenuOutcome::Back:
+            state_ = State::ModeSelect;
+            render();
+            break;
+        case ModeConfigMenuOutcome::OpenPlayerSetup:
+            playerSelectedIndex_ = 0;
+            playerSetupReturnsToMode_ = true;
+            state_ = State::PlayerList;
+            render();
+            break;
+        case ModeConfigMenuOutcome::Start:
+            if (!mode->applyConfiguration(*machineCatalog_)) {
+                render();
+                break;
+            }
+            modeManager_->setPlayerCount(mode->configuredPlayerCount());
+            modeManager_->initializeActiveMode();
+            settings_->setLastSelectedMode(mode->id());
+            if (mode->configuredMachineId() != 0) {
+                const MachineRecord* machine =
+                    machineCatalog_->find(mode->configuredMachineId());
+                if (machine != nullptr) {
+                    gameStorage_->setMachineName(machine->name);
+                }
+            } else {
+                gameStorage_->setMachineName("");
+            }
+            outcome = MenuHandoff::Close;
+            break;
     }
 }
 
@@ -338,7 +385,8 @@ void BootMenu::handleMachineSelectEncoder(const EncoderEvent& event, MenuHandoff
 void BootMenu::handlePlayerListEncoder(const EncoderEvent& event, MenuHandoff&)
 {
     if (event.type == EncoderEventType::SwLongPress) {
-        state_ = State::TopMenu;
+        state_ = playerSetupReturnsToMode_ ? State::ModeOwnedConfig : State::TopMenu;
+        playerSetupReturnsToMode_ = false;
         render();
         return;
     }
@@ -504,6 +552,10 @@ void BootMenu::render()
             renderModeSelect();
             break;
 
+        case State::ModeOwnedConfig:
+            renderModeOwnedConfig();
+            break;
+
         case State::ModeMenu:
             renderModeMenu();
             break;
@@ -535,6 +587,14 @@ void BootMenu::render()
         case State::ModeConfigEdit:
             renderModeConfigEdit();
             break;
+    }
+}
+
+void BootMenu::renderModeOwnedConfig()
+{
+    GameMode* mode = modeManager_->activeMode();
+    if (mode != nullptr) {
+        mode->renderConfigMenu(*tft_);
     }
 }
 

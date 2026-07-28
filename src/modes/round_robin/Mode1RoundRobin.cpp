@@ -1,4 +1,4 @@
-#include "modes/Mode1RoundRobin.h"
+#include "modes/round_robin/Mode1RoundRobin.h"
 
 #include <cstring>
 #include "game/ButtonColors.h"
@@ -27,6 +27,38 @@ uint8_t Mode1RoundRobin::maxPlayers() const
 uint8_t Mode1RoundRobin::defaultPlayerCount() const
 {
     return MAX_MODE_PLAYERS;
+}
+
+void Mode1RoundRobin::openConfigMenu(const MachineCatalog& catalog)
+{
+    configMenu_.begin(config_, catalog);
+}
+
+ModeConfigMenuOutcome
+Mode1RoundRobin::handleConfigMenuEvent(const EncoderEvent& event)
+{
+    switch (configMenu_.handleEncoderEvent(event)) {
+        case RoundRobinConfigMenu::Outcome::StartRoundRobin: return ModeConfigMenuOutcome::Start;
+        case RoundRobinConfigMenu::Outcome::OpenPlayerSetup: return ModeConfigMenuOutcome::OpenPlayerSetup;
+        case RoundRobinConfigMenu::Outcome::Back: return ModeConfigMenuOutcome::Back;
+        case RoundRobinConfigMenu::Outcome::None: return ModeConfigMenuOutcome::None;
+    }
+    return ModeConfigMenuOutcome::None;
+}
+
+void Mode1RoundRobin::renderConfigMenu(TftDisplayManager& tft)
+{
+    configMenu_.render(tft);
+}
+
+bool Mode1RoundRobin::applyConfiguration(const MachineCatalog& catalog)
+{
+    return configure(config_, catalog);
+}
+
+MachineId Mode1RoundRobin::configuredMachineId() const
+{
+    return selectedMachineId_;
 }
 
 void Mode1RoundRobin::setSecondsPerTurn(long seconds)
@@ -59,6 +91,29 @@ void Mode1RoundRobin::setBallCount(uint8_t balls)
 uint8_t Mode1RoundRobin::ballCount() const
 {
     return ballCount_;
+}
+
+bool Mode1RoundRobin::configure(
+    const RoundRobinConfig& config, const MachineCatalog& catalog)
+{
+    if (config.validate(catalog) != RoundRobinConfig::ValidationError::None) {
+        return false;
+    }
+    configuredPlayerCount_ = config.playerCount();
+    selectedMachineId_ = config.machineId();
+    setSecondsPerTurn(config.gameTimeSeconds());
+    setBallCount(config.ballCount());
+    return true;
+}
+
+uint8_t Mode1RoundRobin::configuredPlayerCount() const
+{
+    return configuredPlayerCount_;
+}
+
+MachineId Mode1RoundRobin::selectedMachineId() const
+{
+    return selectedMachineId_;
 }
 
 void Mode1RoundRobin::setupAssignments(GameModeContext& context, uint8_t playerCount)

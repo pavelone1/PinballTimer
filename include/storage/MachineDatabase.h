@@ -29,8 +29,8 @@ private:
     bool open_ = false;
 
     bool load();
+    bool seedDefaultsIfEmpty();
     bool persistIndex();
     bool persistRecord(const MachineRecord& record);
     void recordKey(MachineId id, char* out, size_t outSize) const;
 };
-

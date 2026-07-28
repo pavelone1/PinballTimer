@@ -6,6 +6,7 @@
 #include "game/ButtonAssignmentManager.h"
 #include "game/DisplayAssignmentManager.h"
 #include "game/TimerManager.h"
+#include "game/MachineCatalog.h"
 #include "output/NumericDisplayManager.h"
 #include "output/TftDisplayManager.h"
 #include "output/ButtonLightManager.h"
@@ -27,6 +28,13 @@ struct GameModeContext {
     GameStorage& gameStorage;
 };
 
+enum class ModeConfigMenuOutcome : uint8_t {
+    None,
+    Start,
+    OpenPlayerSetup,
+    Back
+};
+
 // Common interface every game mode implements. No central switch/case
 // is needed to select mode behavior -- the active mode supplies its
 // own functions via this interface, and GameModeManager just routes
@@ -45,6 +53,15 @@ public:
     virtual uint8_t minPlayers() const = 0;
     virtual uint8_t maxPlayers() const = 0;
     virtual uint8_t defaultPlayerCount() const = 0;
+
+    // Mode-owned boot configuration. BootMenu delegates to these methods and
+    // remains unaware of individual menu items or validation rules.
+    virtual void openConfigMenu(const MachineCatalog& catalog) { (void)catalog; }
+    virtual ModeConfigMenuOutcome handleConfigMenuEvent(const EncoderEvent& event) { (void)event; return ModeConfigMenuOutcome::None; }
+    virtual void renderConfigMenu(TftDisplayManager& tft) { (void)tft; }
+    virtual bool applyConfiguration(const MachineCatalog& catalog) { (void)catalog; return true; }
+    virtual uint8_t configuredPlayerCount() const { return defaultPlayerCount(); }
+    virtual MachineId configuredMachineId() const { return 0; }
 
     // Called once when this mode becomes active, before any start.
     // Sets up player/button/display/timer assignments for the mode.

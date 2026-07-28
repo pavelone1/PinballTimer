@@ -1,7 +1,8 @@
 #pragma once
 
 #include "game/GameModeManager.h"
-#include "modes/Mode1RoundRobin.h"
+#include "modes/round_robin/Mode1RoundRobin.h"
+#include "modes/gauntlet/Mode2Gauntlet.h"
 
 // Contains the list of available game modes. Adding a mode means:
 // 1. Add the new mode's files under modes/.
@@ -12,6 +13,7 @@ namespace ModeRegistry {
 // Owns the single Mode1RoundRobin instance registered below.
 // GameModeManager stores a pointer to it but does not own it.
 extern Mode1RoundRobin mode1RoundRobin;
+extern Mode2Gauntlet mode2Gauntlet;
 
 void registerAllModes(GameModeManager& manager);
 

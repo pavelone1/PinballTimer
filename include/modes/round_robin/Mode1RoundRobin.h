@@ -3,6 +3,8 @@
 #include <cstdint>
 #include "game/GameMode.h"
 #include "game/RoundRobinTurnEngine.h"
+#include "modes/round_robin/RoundRobinConfig.h"
+#include "modes/round_robin/RoundRobinConfigMenu.h"
 
 // Mode 1: 4-Player Round-Robin Timer, per CLAUDE.md's "Mode 1 rules".
 //
@@ -62,12 +64,21 @@ public:
     uint8_t minPlayers() const override;
     uint8_t maxPlayers() const override;
     uint8_t defaultPlayerCount() const override;
+    void openConfigMenu(const MachineCatalog& catalog) override;
+    ModeConfigMenuOutcome handleConfigMenuEvent(const EncoderEvent& event) override;
+    void renderConfigMenu(TftDisplayManager& tft) override;
+    bool applyConfiguration(const MachineCatalog& catalog) override;
+    uint8_t configuredPlayerCount() const override;
+    MachineId configuredMachineId() const override;
 
     void setSecondsPerTurn(long seconds);
     long secondsPerTurn() const;
 
     void setBallCount(uint8_t balls);
     uint8_t ballCount() const;
+
+    bool configure(const RoundRobinConfig& config, const MachineCatalog& catalog);
+    MachineId selectedMachineId() const;
 
     void setupAssignments(GameModeContext& context, uint8_t playerCount) override;
     bool restoreState(GameModeContext& context) override;
@@ -115,6 +126,10 @@ private:
     long secondsPerTurn_ = DEFAULT_SECONDS_PER_TURN;
     uint8_t ballCount_ = DEFAULT_BALL_COUNT;
     uint8_t playerCount_ = 0;
+    uint8_t configuredPlayerCount_ = MAX_MODE_PLAYERS;
+    MachineId selectedMachineId_ = 0;
+    RoundRobinConfig config_;
+    RoundRobinConfigMenu configMenu_;
 
     // Whose turn it is, by ButtonId -- turn order follows the fixed
     // physical button color order (ButtonColors.h), not PlayerId,

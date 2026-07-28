@@ -11,6 +11,43 @@ uint8_t Mode2Gauntlet::minPlayers() const { return 1; }
 uint8_t Mode2Gauntlet::maxPlayers() const { return 4; }
 uint8_t Mode2Gauntlet::defaultPlayerCount() const { return 4; }
 
+void Mode2Gauntlet::openConfigMenu(const MachineCatalog& catalog)
+{
+    configMenu_.begin(config_, catalog);
+}
+
+ModeConfigMenuOutcome
+Mode2Gauntlet::handleConfigMenuEvent(const EncoderEvent& event)
+{
+    switch (configMenu_.handleEncoderEvent(event)) {
+        case GauntletConfigMenu::Outcome::StartGauntlet: return ModeConfigMenuOutcome::Start;
+        case GauntletConfigMenu::Outcome::OpenPlayerSetup: return ModeConfigMenuOutcome::OpenPlayerSetup;
+        case GauntletConfigMenu::Outcome::Back: return ModeConfigMenuOutcome::Back;
+        case GauntletConfigMenu::Outcome::None: return ModeConfigMenuOutcome::None;
+    }
+    return ModeConfigMenuOutcome::None;
+}
+
+void Mode2Gauntlet::renderConfigMenu(TftDisplayManager& tft)
+{
+    configMenu_.render(tft);
+}
+
+bool Mode2Gauntlet::applyConfiguration(const MachineCatalog& catalog)
+{
+    return configure(config_, catalog);
+}
+
+uint8_t Mode2Gauntlet::configuredPlayerCount() const
+{
+    return config_.playerCount();
+}
+
+MachineId Mode2Gauntlet::configuredMachineId() const
+{
+    return config_.machineAssignment(0);
+}
+
 void Mode2Gauntlet::clearMachines()
 {
     session_.clear();

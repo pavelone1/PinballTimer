@@ -1,5 +1,6 @@
 #include "modes/gauntlet/GauntletConfigMenu.h"
 
+
 void GauntletConfigMenu::begin(
     GauntletConfig& config, const MachineCatalog& catalog)
 {

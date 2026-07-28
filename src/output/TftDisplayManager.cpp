@@ -65,13 +65,22 @@ void TftDisplayManager::drawCenteredText(
     tft_.setTextColor(colorFor(color));
     tft_.setTextWrap(false);
 
-    tft_.getTextBounds(text, 0, y, &x1, &y1, &width, &height);
+    tft_.getTextBounds(text, 0, 0, &x1, &y1, &width, &height);
 
     const int16_t x =
         (static_cast<int16_t>(tft_.width()) -
          static_cast<int16_t>(width)) / 2;
 
-    tft_.setCursor(x, y);
+    // Keep the full glyph box above the REV2 panel's six invisible bottom
+    // rows. Centralizing this here protects status screens, ball screens, and
+    // one-off diagnostics without each caller knowing the hardware inset.
+    const int16_t usableBottom =
+        static_cast<int16_t>(tft_.height()) - BOTTOM_SAFE_INSET;
+    const int16_t latestVisibleY =
+        usableBottom - static_cast<int16_t>(height);
+    const int16_t visibleY = y > latestVisibleY ? latestVisibleY : y;
+
+    tft_.setCursor(x, visibleY);
     tft_.print(text);
 
     hasCachedScreen_ = false;

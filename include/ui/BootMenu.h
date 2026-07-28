@@ -101,6 +101,7 @@ private:
     enum class State : uint8_t {
         TopMenu,
         ModeSelect,
+        ModeOwnedConfig,
         ModeMenu,
         PlayerCountEdit,
         MachineSelect,
@@ -171,6 +172,7 @@ private:
     uint8_t machineSelectedIndex_ = 0;
 
     uint8_t playerSelectedIndex_ = 0;
+    bool playerSetupReturnsToMode_ = false;
     PlayerId editingPlayer_ = PlayerId::Player1;
     TextEntry textEntry_;
 
@@ -185,6 +187,7 @@ private:
 
     void handleTopMenuEncoder(const EncoderEvent& event, MenuHandoff& outcome);
     void handleModeSelectEncoder(const EncoderEvent& event, MenuHandoff& outcome);
+    void handleModeOwnedConfigEncoder(const EncoderEvent& event, MenuHandoff& outcome);
     void handleModeMenuEncoder(const EncoderEvent& event, MenuHandoff& outcome);
     void handlePlayerCountEditEncoder(const EncoderEvent& event, MenuHandoff& outcome);
     void handleMachineSelectEncoder(const EncoderEvent& event, MenuHandoff& outcome);
@@ -199,6 +202,7 @@ private:
     void render();
     void renderTopMenu();
     void renderModeSelect();
+    void renderModeOwnedConfig();
     void renderModeMenu();
     void renderPlayerCountEdit();
     void renderMachineSelect();

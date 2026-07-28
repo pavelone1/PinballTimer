@@ -4,6 +4,7 @@
 #include "game/RoundRobinTurnEngine.h"
 #include "modes/gauntlet/GauntletSession.h"
 #include "modes/gauntlet/GauntletConfig.h"
+#include "modes/gauntlet/GauntletConfigMenu.h"
 
 // Standalone Gauntlet implementation. It is deliberately not registered in
 // ModeRegistry yet; configuration is supplied programmatically until the
@@ -17,6 +18,12 @@ public:
     uint8_t minPlayers() const override;
     uint8_t maxPlayers() const override;
     uint8_t defaultPlayerCount() const override;
+    void openConfigMenu(const MachineCatalog& catalog) override;
+    ModeConfigMenuOutcome handleConfigMenuEvent(const EncoderEvent& event) override;
+    void renderConfigMenu(TftDisplayManager& tft) override;
+    bool applyConfiguration(const MachineCatalog& catalog) override;
+    uint8_t configuredPlayerCount() const override;
+    MachineId configuredMachineId() const override;
 
     void clearMachines();
     bool addMachine(const MachineRecord& machine);
@@ -38,6 +45,8 @@ private:
     static constexpr unsigned long FLASH_INTERVAL_MS = 500;
 
     GauntletSession session_;
+    GauntletConfig config_;
+    GauntletConfigMenu configMenu_;
     RoundRobinTurnEngine turns_;
     TimerId timerIds_[MAX_PLAYERS] = {};
     uint8_t playerCount_ = 0;

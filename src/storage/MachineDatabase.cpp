@@ -19,7 +19,7 @@ bool MachineDatabase::begin()
         return false;
     }
     open_ = true;
-    return load();
+    return load() && seedDefaultsIfEmpty();
 }
 
 void MachineDatabase::end()
@@ -114,6 +114,19 @@ bool MachineDatabase::load()
     return true;
 }
 
+bool MachineDatabase::seedDefaultsIfEmpty()
+{
+    if (catalog_.count() != 0) {
+        return true;
+    }
+
+    MachineId id = 0;
+    return add("Stars", MachineType::SolidState, 3, 180, true, id) &&
+           add("Meteor", MachineType::SolidState, 3, 180, true, id) &&
+           add("Mars Trek", MachineType::EM, 5, 270, true, id) &&
+           add("Scared Stiff", MachineType::DMD, 3, 240, true, id);
+}
+
 bool MachineDatabase::persistIndex()
 {
     MachineId ids[MachineCatalog::MAX_RECORDS] = {};
@@ -138,4 +151,3 @@ void MachineDatabase::recordKey(MachineId id, char* out, size_t outSize) const
 {
     std::snprintf(out, outSize, "m%lu", static_cast<unsigned long>(id));
 }
-

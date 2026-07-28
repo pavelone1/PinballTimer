@@ -56,6 +56,9 @@ public:
     );
 
 private:
+    // Physical REV2 observation: the bottom six landscape pixel rows are not
+    // visible. All shared text rendering clamps above this safe inset.
+    static constexpr int16_t BOTTOM_SAFE_INSET = 6;
     static constexpr uint8_t MAX_LINES = 5;
     static constexpr uint8_t MAX_LINE_LENGTH = 32;
     static constexpr uint8_t MAX_TITLE_LENGTH = 32;

@@ -4,6 +4,7 @@
 #include "SystemTypes.h"
 #include "game/MachineCatalog.h"
 #include "modes/gauntlet/GauntletConfig.h"
+class TftDisplayManager;
 
 // Mode-owned, renderer-independent menu controller. A future BootMenu handoff
 // can render the exposed state and route EncoderEvent values without knowing
@@ -39,6 +40,7 @@ public:
 
     void begin(GauntletConfig& config, const MachineCatalog& catalog);
     Outcome handleEncoderEvent(const EncoderEvent& event);
+    void render(TftDisplayManager& tft) const;
 
     Screen screen() const;
     Item selectedItem() const;
@@ -65,4 +67,3 @@ private:
     void rotate(bool clockwise);
     Outcome select();
 };
-

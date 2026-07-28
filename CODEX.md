@@ -18,6 +18,17 @@ revisions.
 - Existing REV1 code and build environments are not removed merely because
   they are no longer the development baseline.
 
+### REV2 TFT Observation
+
+- On the physical REV2 unit, the bottom six pixel rows of the TFT are not
+  visible. UI layout and clipping must treat those rows as unavailable unless
+  later hardware testing establishes that this is an ST7789 offset/init issue
+  that can be corrected safely.
+- `TftDisplayManager::drawCenteredText()` now enforces a shared six-pixel
+  bottom safe inset, moving any text whose glyph box would enter those rows
+  upward. This applies automatically to status screens, ball screens, menus,
+  and one-off centered text. `pio run -e app-rev2` passes with the change.
+
 No Gauntlet firmware has been implemented yet. This document is the agreed
 working specification and architecture direction.
 
@@ -469,3 +480,121 @@ On 2026-07-27, the user approved a second isolated implementation phase:
 - Verification:
   - `pio test -e native`: 43/43 tests passed.
   - `pio run -e app-rev2`: passed.
+
+## Approved Round Robin Configuration Menu Work
+
+On 2026-07-27, the user approved restructuring Mode 1 to match Gauntlet's
+mode-owned configuration pattern:
+
+- Group Mode 1 gameplay, configuration, and menu code under a
+  `modes/round_robin/` feature directory.
+- Add `RoundRobinConfig` with:
+  - Number of Players from 1 through 4.
+  - Optional machine selection from the common database. Mode 1 does **not**
+    require a machine selection to start.
+  - Game Time from 1 through 5999 seconds, default 3:00.
+  - Ball Count from 1 through 5, default 3.
+- Add the mode-owned menu in this order:
+  1. Start Round Robin.
+  2. Number of Players.
+  3. Select Machine.
+  4. Game Time.
+  5. Ball Count.
+  6. Player Setup.
+  7. Back.
+- Keep the existing `BootMenu` path operational until all mode-owned menus are
+  integrated together.
+- Preserve Mode 1 runtime behavior.
+- Add native tests and verify the REV2 firmware target.
+
+### Round Robin Configuration Implementation Log
+
+- Work started by Codex on 2026-07-27.
+- Moved Mode 1 gameplay into `modes/round_robin/` and added the mode-owned
+  `RoundRobinConfig` and `RoundRobinConfigMenu` alongside it.
+- `RoundRobinConfig` owns player count, optional stable machine ID, game time,
+  and ball count. No machine selection is valid and does not block starting.
+- `RoundRobinConfigMenu` owns the approved item order, encoder navigation,
+  optional database selection (including an explicit None choice), numeric
+  editors, player-setup handoff, validation state, and start/back outcomes.
+- Added `Mode1RoundRobin::configure()` to consume a validated configuration
+  without changing the existing runtime setup path.
+- Updated source includes for the new feature directory while keeping the
+  current `BootMenu` flow operational pending unified mode-menu integration.
+- Verification:
+  - `pio test -e native`: 49/49 tests passed.
+  - `pio run -e app-rev2`: passed.
+
+## Approved Mode-Owned Menu Integration
+
+On 2026-07-27, the user approved integrating the mode-owned configuration
+menus into the real boot flow and registering Gauntlet:
+
+- Add a generic mode-menu contract to `GameMode`.
+- Make `BootMenu` delegate configuration input, rendering, validation, and
+  application to the selected mode.
+- Preserve shared Player Setup and return to the active mode menu afterward.
+- Register `Mode2Gauntlet` in `ModeRegistry`.
+- Block Gauntlet start until all configured instances are assigned.
+- Continue allowing Round Robin to start without a selected machine.
+- Copy a selected catalog machine name into the existing session machine label.
+- Remove reliance on `BootMenu`'s hardcoded Mode 1 configuration path.
+- Verify native tests and the REV2 firmware build; upload remains a separate
+  user-requested action.
+
+### Mode-Owned Menu Integration Log
+
+- Work started by Codex on 2026-07-27.
+- Added generic mode configuration hooks/outcomes to `GameMode`; `BootMenu`
+  delegates menu opening, encoder handling, rendering, validation/application,
+  configured player count, and optional machine identity to the active mode.
+- Added firmware-only renderer companion files for both mode menus, keeping
+  their state/controllers free of Adafruit dependencies and native-testable.
+- Shared Player Setup can now be entered from a mode menu and returns to that
+  mode menu on long-press back.
+- Registered `Mode2Gauntlet` after Mode 1 in `ModeRegistry`; it now appears in
+  Select Game Mode.
+- Starting a mode applies its owned configuration, sets the mode manager's
+  player count, initializes the mode, persists the last selected mode, and
+  mirrors an optional selected machine name into the existing game-session
+  label.
+- Gauntlet validation still blocks start until every configured machine
+  instance is assigned. Round Robin still starts with no machine selected.
+- The legacy hardcoded `BootMenu` ModeMenu/config states remain compiled for
+  compatibility but are no longer entered from Select Game Mode; the live path
+  is `State::ModeOwnedConfig`.
+- Verification:
+  - `pio test -e native`: 49/49 tests passed.
+  - `pio run -e app-rev2`: passed.
+
+## Approved Scrolling Menus and Initial Catalog
+
+On 2026-07-27, the user approved:
+
+- Render mode-owned root menus and machine-selection screens as scrolling
+  lists, not one selected item at a time.
+- Keep the selected row visible and visibly marked.
+- Retain focused single-value screens for numeric editing.
+- Preserve the REV2 six-pixel TFT bottom safe area.
+- Seed the persistent machine database only when it is completely empty with:
+  - Stars — Solid State — 3 balls — 3:00.
+  - Meteor — Solid State — 3 balls — 3:00.
+  - Mars Trek — EM — 5 balls — 4:30.
+  - Scared Stiff — DMD — 3 balls — 4:00.
+- The user confirmed `Stars` as the intended spelling for the initial record
+  originally typed as `Starts`.
+
+### Scrolling Menu and Catalog Implementation Log
+
+- Work started by Codex on 2026-07-27.
+- Round Robin and Gauntlet root menus now render up to five rows at once,
+  marking the current row and scrolling the window as the selection moves.
+- Gauntlet machine-instance assignment and both modes' catalog pickers use the
+  same scrolling-list behavior. Round Robin retains its explicit None entry.
+- Numeric value editors and warnings remain focused screens.
+- A completely empty persistent machine database is seeded with Stars, Meteor,
+  Mars Trek, and Scared Stiff using the approved types, ball counts, and play
+  times. Existing non-empty databases are never seeded or altered.
+- Verification:
+  - `pio test -e native`: 49/49 tests passed.
+  - `pio run -e app-rev2`: passed (811,905 bytes flash; 54,636 bytes RAM).

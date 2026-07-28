@@ -3,7 +3,7 @@
 #include <cstdio>
 #include <cstring>
 #include "FeatureFlags.h"
-#include "modes/Mode1RoundRobin.h"
+#include "modes/round_robin/Mode1RoundRobin.h"
 #include "ui/ScrollList.h"
 
 void DirectorMenu::open(GameModeManager& modeManager, DirectorControl& directorControl, PlayerManager& players, TftDisplayManager& tft)
