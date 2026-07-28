@@ -744,3 +744,18 @@ and requested true radio-off behavior:
   the explicit power action must be selected first.
 - Verification:
   - `pio run -e app-rev2`: passed (907,973 bytes flash; 58,100 bytes RAM).
+
+### 2026-07-28 Radio-Power Firmware Deployment
+
+- Committed the WiFi setup usability, connection recovery, and explicit
+  radio-power policy as commit `fbd714a`; pushed it to `origin/main`.
+- Pre-deployment verification:
+  - `pio test -e native`: 50/50 tests passed.
+  - `pio run -e app-rev2`: passed (907,973 bytes flash; 58,100 bytes RAM).
+- Uploaded commit `fbd714a`'s `app-rev2` firmware over USB to the ESP32-S3 on
+  `COM13`, MAC `c0:4e:30:06:f9:28`.
+- Esptool verified every written image-region hash and hard-reset the board via
+  RTS; PlatformIO reported upload success.
+- On this and every subsequent fresh boot, the expected state is WiFi OFF and
+  `Keep WiFi Alive` OFF. Saved SSID/password data remains available for an
+  explicit `Turn WiFi ON`.
