@@ -11,18 +11,23 @@
 // so it can be checked alongside the numeric displays.
 // Build/upload with: pio run -e display-test -t upload
 // Does not touch src/main.cpp or its pin assignments.
+//
+// REV2 pins (confirmed, physical board built -- see CLAUDE.md "REV2
+// hardware" and docs/images/rev2-pinout.svg). Unlike REV1, the TFT no
+// longer shares pins with UART0, so the serial monitor stays fully
+// usable the whole time this runs.
 
-constexpr uint8_t DISPLAY_1_CLK = 40;
-constexpr uint8_t DISPLAY_1_DIO = 39;
+constexpr uint8_t DISPLAY_1_CLK = 39;
+constexpr uint8_t DISPLAY_1_DIO = 40;
 
-constexpr uint8_t DISPLAY_2_CLK = 9;
-constexpr uint8_t DISPLAY_2_DIO = 10;
+constexpr uint8_t DISPLAY_2_CLK = 10;
+constexpr uint8_t DISPLAY_2_DIO = 11;
 
 constexpr uint8_t DISPLAY_3_CLK = 13;
 constexpr uint8_t DISPLAY_3_DIO = 14;
 
-constexpr uint8_t DISPLAY_4_CLK = 47;
-constexpr uint8_t DISPLAY_4_DIO = 21;
+constexpr uint8_t DISPLAY_4_CLK = 21;
+constexpr uint8_t DISPLAY_4_DIO = 47;
 
 TM1637Display timerDisplays[] = {
     TM1637Display(DISPLAY_1_CLK, DISPLAY_1_DIO),
@@ -33,11 +38,11 @@ TM1637Display timerDisplays[] = {
 
 constexpr uint8_t DISPLAY_COUNT = 4;
 
-constexpr uint8_t TFT_SCLK = 43;
-constexpr uint8_t TFT_MOSI = 44;
-constexpr uint8_t TFT_RST  = 1;
-constexpr uint8_t TFT_DC   = 2;
-constexpr uint8_t TFT_CS   = 42;
+constexpr uint8_t TFT_SCLK = 4;
+constexpr uint8_t TFT_MOSI = 5;
+constexpr uint8_t TFT_RST  = 6;
+constexpr uint8_t TFT_DC   = 7;
+constexpr uint8_t TFT_CS   = 15;
 
 Adafruit_ST7789 tft(TFT_CS, TFT_DC, TFT_RST);
 
@@ -115,7 +120,7 @@ void setup()
     tft.setRotation(1);
     tft.fillScreen(ST77XX_BLACK);
 
-    Serial.println("Display + TFT flash test started");
+    Serial.println("Display + TFT flash test started (REV2 pins)");
 }
 
 void loop()

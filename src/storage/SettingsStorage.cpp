@@ -11,6 +11,9 @@ void SettingsStorage::begin()
     soundEnabled_ = prefs_.getBool("sound", soundEnabled_);
     prefs_.getString("wifiSsid", wifiSsid_, SSID_MAX_LENGTH);
     prefs_.getString("wifiPass", wifiPassword_, PASSWORD_MAX_LENGTH);
+    wifiOperatingMode_ = static_cast<WifiOperatingMode>(
+        prefs_.getUChar("wifiApMode", static_cast<uint8_t>(wifiOperatingMode_))
+    );
     directorControlEnabled_ = prefs_.getBool("directorEn", directorControlEnabled_);
     preferRemoteControl_ = prefs_.getBool("preferRemote", preferRemoteControl_);
     standbyTimeoutSeconds_ = prefs_.getUInt("standbyTO", standbyTimeoutSeconds_);
@@ -70,6 +73,17 @@ const char* SettingsStorage::wifiSsid() const
 const char* SettingsStorage::wifiPassword() const
 {
     return wifiPassword_;
+}
+
+void SettingsStorage::setWifiOperatingMode(WifiOperatingMode mode)
+{
+    wifiOperatingMode_ = mode;
+    prefs_.putUChar("wifiApMode", static_cast<uint8_t>(mode));
+}
+
+WifiOperatingMode SettingsStorage::wifiOperatingMode() const
+{
+    return wifiOperatingMode_;
 }
 
 void SettingsStorage::setDirectorControlEnabled(bool enabled)

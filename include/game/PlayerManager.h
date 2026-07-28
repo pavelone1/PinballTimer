@@ -55,6 +55,14 @@ public:
     void setStatus(PlayerId player, PlayerStatus status);
     PlayerStatus status(PlayerId player) const;
 
+    // Rounds ("balls") left for this player this game -- set by the
+    // active mode at round start and decremented as their turns end.
+    // This class does not interpret the value, just stores it (same
+    // spirit as modeData, but a named field since StatusReporter needs
+    // to read it generically for the director dashboard).
+    void setRoundsRemaining(PlayerId player, uint8_t rounds);
+    uint8_t roundsRemaining(PlayerId player) const;
+
     // Opaque per-player scratch storage for future game modes. This
     // class does not interpret the contents.
     void setModeData(PlayerId player, uint8_t index, uint8_t value);
@@ -75,6 +83,7 @@ private:
         DisplayId displayAssignment = DisplayId::Display1;
         uint8_t teamId = 0;
         PlayerStatus status = PlayerStatus::Inactive;
+        uint8_t roundsRemaining = 0;
         uint8_t modeData[MODE_DATA_SIZE] = {};
     };
 

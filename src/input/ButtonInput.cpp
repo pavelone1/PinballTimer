@@ -1,13 +1,10 @@
 #include "input/ButtonInput.h"
 
 #include <Arduino.h>
-#include "HardwarePins.h"
 
 void ButtonInput::begin()
 {
-    for (uint8_t i = 0; i < BUTTON_COUNT; ++i) {
-        pinMode(HardwarePins::BUTTON_SWITCHES[i], INPUT_PULLUP);
-    }
+    switchIo_.begin();
 }
 
 void ButtonInput::update()
@@ -15,7 +12,7 @@ void ButtonInput::update()
     const unsigned long now = millis();
 
     for (uint8_t i = 0; i < BUTTON_COUNT; ++i) {
-        const bool raw = digitalRead(HardwarePins::BUTTON_SWITCHES[i]) == LOW;
+        const bool raw = switchIo_.readPressed(i);
         const ButtonId button = static_cast<ButtonId>(i);
 
         if (raw != rawState_[i]) {

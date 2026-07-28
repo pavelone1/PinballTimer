@@ -3,6 +3,15 @@
 #include <cstdint>
 #include <Preferences.h>
 
+// How this device uses WiFi, persisted across reboots. See
+// network/WifiPortal.h for how AP+STA coexist ("Both") without one
+// clobbering the other's WiFi.mode().
+enum class WifiOperatingMode : uint8_t {
+    StationOnly,     // normal: joins the saved venue network only, no hotspot
+    AccessPointOnly, // "adhoc": broadcasts WifiPortal's own hotspot only, never attempts the venue network
+    Both             // joins the venue network AND keeps the hotspot broadcasting alongside it
+};
+
 // Persistent system preferences (NVS, "settings" namespace). Values
 // are cached in RAM after begin() and every setter writes through to
 // flash immediately -- these change rarely (unlike active timer
@@ -24,6 +33,9 @@ public:
     void setWifiCredentials(const char* ssid, const char* password);
     const char* wifiSsid() const;
     const char* wifiPassword() const;
+
+    void setWifiOperatingMode(WifiOperatingMode mode);
+    WifiOperatingMode wifiOperatingMode() const;
 
     void setDirectorControlEnabled(bool enabled);
     bool directorControlEnabled() const;
@@ -50,6 +62,7 @@ private:
     bool soundEnabled_ = true;
     char wifiSsid_[SSID_MAX_LENGTH] = "";
     char wifiPassword_[PASSWORD_MAX_LENGTH] = "";
+    WifiOperatingMode wifiOperatingMode_ = WifiOperatingMode::StationOnly;
     bool directorControlEnabled_ = false;
     bool preferRemoteControl_ = false;
     uint32_t standbyTimeoutSeconds_ = 300;

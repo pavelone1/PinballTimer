@@ -7,15 +7,16 @@
 #include "game/TimerManager.h"
 #include "network/NetworkManager.h"
 #include "storage/SettingsStorage.h"
+#include "storage/GameStorage.h"
+#include "power/PowerManager.h"
 
 class DirectorControl; // forward-declared to avoid a circular include with DirectorControl.h
 
 // Produces the timer's remote status as a small hand-built JSON
 // document (no JSON library dependency -- the payload shape is small
-// and fixed, not deeply dynamic). Battery status is not implemented:
-// no ADC pin has been assigned for battery voltage monitoring yet
-// (see HardwarePins.h), so this reports batteryAvailable:false rather
-// than a fabricated reading.
+// and fixed, not deeply dynamic). Battery fields are read live from
+// PowerManager; batteryAvailable is false until a real sensing source
+// (or a debug stub) is installed there -- see PowerManager.h.
 //
 // "Current four displayed players" / timer states are read generically
 // via DisplayAssignmentManager (whatever each display is currently
@@ -30,7 +31,9 @@ public:
         TimerManager& timers,
         NetworkManager& network,
         SettingsStorage& settings,
-        DirectorControl& directorControl
+        DirectorControl& directorControl,
+        PowerManager& power,
+        GameStorage& gameStorage
     );
 
     // Writes a NUL-terminated JSON document into buffer. Returns the
@@ -45,4 +48,6 @@ private:
     NetworkManager* network_ = nullptr;
     SettingsStorage* settings_ = nullptr;
     DirectorControl* directorControl_ = nullptr;
+    PowerManager* power_ = nullptr;
+    GameStorage* gameStorage_ = nullptr;
 };

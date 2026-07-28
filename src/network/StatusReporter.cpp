@@ -11,7 +11,9 @@ void StatusReporter::begin(
     TimerManager& timers,
     NetworkManager& network,
     SettingsStorage& settings,
-    DirectorControl& directorControl
+    DirectorControl& directorControl,
+    PowerManager& power,
+    GameStorage& gameStorage
 )
 {
     modeManager_ = &modeManager;
@@ -21,6 +23,8 @@ void StatusReporter::begin(
     network_ = &network;
     settings_ = &settings;
     directorControl_ = &directorControl;
+    power_ = &power;
+    gameStorage_ = &gameStorage;
 }
 
 namespace {
@@ -69,7 +73,27 @@ size_t StatusReporter::buildStatusJson(char* buffer, size_t bufferSize) const
     appendf(buffer, bufferSize, &offset, ",\"paused\":%s", modeManager_->isPaused() ? "true" : "false");
     appendf(buffer, bufferSize, &offset, ",\"localControlsLocked\":%s", directorControl_->localControlsLocked() ? "true" : "false");
     appendf(buffer, bufferSize, &offset, ",\"networkState\":%d", static_cast<int>(network_->connectionState()));
-    appendf(buffer, bufferSize, &offset, ",\"batteryAvailable\":false");
+    appendf(buffer, bufferSize, &offset, ",\"powerState\":%d", static_cast<int>(power_->state()));
+    appendf(buffer, bufferSize, &offset, ",\"machineName\":\"%s\"", gameStorage_->machineName());
+    appendf(buffer, bufferSize, &offset, ",\"secondsPerTurn\":%ld", mode != nullptr ? mode->modeOption("secondsPerTurn") : 0);
+    appendf(buffer, bufferSize, &offset, ",\"ballCount\":%ld", mode != nullptr ? mode->modeOption("ballCount") : 0);
+    appendf(buffer, bufferSize, &offset, ",\"gameOver\":%s", (mode != nullptr && mode->isRoundOver()) ? "true" : "false");
+
+    appendf(buffer, bufferSize, &offset, ",\"availableModes\":[");
+    for (uint8_t i = 0; i < modeManager_->modeCount(); ++i) {
+        GameMode* m = modeManager_->modeAt(i);
+        appendf(buffer, bufferSize, &offset, "%s{\"id\":%d,\"name\":\"%s\"}",
+            i == 0 ? "" : ",", static_cast<int>(m->id()), m->name());
+    }
+    appendf(buffer, bufferSize, &offset, "]");
+
+    if (power_->batteryAvailable()) {
+        appendf(buffer, bufferSize, &offset,
+            ",\"batteryAvailable\":true,\"batteryVoltage\":%.2f,\"batteryPercent\":%u",
+            static_cast<double>(power_->batteryVoltageV()), power_->batteryPercent());
+    } else {
+        appendf(buffer, bufferSize, &offset, ",\"batteryAvailable\":false");
+    }
 
     appendf(buffer, bufferSize, &offset, ",\"displays\":[");
 
@@ -84,14 +108,35 @@ size_t StatusReporter::buildStatusJson(char* buffer, size_t bufferSize) const
             appendf(buffer, bufferSize, &offset, ",\"timerSeconds\":%ld,\"timerRunning\":%s",
                 timers_->currentValueSeconds(assignment.timerId),
                 timers_->isRunning(assignment.timerId) ? "true" : "false");
+
+            // Mode1RoundRobin assigns displays as SharedTimer (bound to
+            // a TimerId), not SinglePlayer/PlayerNumber -- resolve which
+            // player owns this timer via TimerManager's own
+            // association (set by setAssociatedPlayer() at setup) so
+            // the dashboard still gets per-player info for these.
+            PlayerId owner;
+            if (timers_->associatedPlayer(assignment.timerId, owner)) {
+                appendf(buffer, bufferSize, &offset,
+                    ",\"playerId\":%u,\"playerNumber\":%u,\"playerStatus\":%d,\"color\":%d,\"roundsRemaining\":%u,\"name\":\"%s\"",
+                    static_cast<uint8_t>(owner),
+                    players_->displayedNumber(owner),
+                    static_cast<int>(players_->status(owner)),
+                    static_cast<int>(players_->assignedColor(owner)),
+                    players_->roundsRemaining(owner),
+                    players_->name(owner));
+            }
         }
 
         if (assignment.type == DisplayAssignmentType::SinglePlayer ||
             assignment.type == DisplayAssignmentType::PlayerNumber) {
-            appendf(buffer, bufferSize, &offset, ",\"playerId\":%u,\"playerNumber\":%u,\"playerStatus\":%d",
+            appendf(buffer, bufferSize, &offset,
+                ",\"playerId\":%u,\"playerNumber\":%u,\"playerStatus\":%d,\"color\":%d,\"roundsRemaining\":%u,\"name\":\"%s\"",
                 static_cast<uint8_t>(assignment.player),
                 players_->displayedNumber(assignment.player),
-                static_cast<int>(players_->status(assignment.player)));
+                static_cast<int>(players_->status(assignment.player)),
+                static_cast<int>(players_->assignedColor(assignment.player)),
+                players_->roundsRemaining(assignment.player),
+                players_->name(assignment.player));
         }
 
         appendf(buffer, bufferSize, &offset, "}");

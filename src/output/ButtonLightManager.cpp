@@ -1,13 +1,11 @@
 #include "output/ButtonLightManager.h"
 
 #include <Arduino.h>
-#include "HardwarePins.h"
 
 void ButtonLightManager::begin()
 {
+    lightIo_.begin();
     for (uint8_t i = 0; i < BUTTON_COUNT; ++i) {
-        pinMode(HardwarePins::BUTTON_LIGHTS[i], OUTPUT);
-        digitalWrite(HardwarePins::BUTTON_LIGHTS[i], LOW);
         state_[i].dirty = true;
     }
 }
@@ -110,7 +108,7 @@ void ButtonLightManager::render(uint8_t index)
 
     if (desiredOn != s.currentOn) {
         s.currentOn = desiredOn;
-        digitalWrite(HardwarePins::BUTTON_LIGHTS[index], desiredOn ? HIGH : LOW);
+        lightIo_.write(index, desiredOn);
     }
 
     s.dirty = false;

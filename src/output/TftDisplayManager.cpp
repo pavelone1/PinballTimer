@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <SPI.h>
+#include <cstdio>
 #include <cstring>
 #include "HardwarePins.h"
 
@@ -38,12 +39,14 @@ void TftDisplayManager::wake()
     delay(120); // panel needs time to stabilize after sleep-out, per ST7789 datasheet
     tft_.sendCommand(ST77XX_DISPON);
     hasCachedScreen_ = false;
+    lastScreenKind_ = ScreenKind::None;
 }
 
 void TftDisplayManager::fillScreen(ColorId color)
 {
     tft_.fillScreen(colorFor(color));
     hasCachedScreen_ = false;
+    lastScreenKind_ = ScreenKind::None;
 }
 
 void TftDisplayManager::drawCenteredText(
@@ -72,6 +75,7 @@ void TftDisplayManager::drawCenteredText(
     tft_.print(text);
 
     hasCachedScreen_ = false;
+    lastScreenKind_ = ScreenKind::None;
 }
 
 void TftDisplayManager::showStatusScreen(
@@ -86,6 +90,7 @@ void TftDisplayManager::showStatusScreen(
     const uint8_t clampedLineCount = lineCount > MAX_LINES ? MAX_LINES : lineCount;
 
     if (hasCachedScreen_ &&
+        lastScreenKind_ == ScreenKind::Status &&
         cachedBackground_ == background &&
         cachedTitleColor_ == titleColor &&
         cachedLineColor_ == lineColor &&
@@ -125,6 +130,46 @@ void TftDisplayManager::showStatusScreen(
     cachedTitleColor_ = titleColor;
     cachedLineColor_ = lineColor;
     hasCachedScreen_ = true;
+    lastScreenKind_ = ScreenKind::Status;
+}
+
+void TftDisplayManager::showBallScreen(
+    const char* title,
+    uint8_t ballNumber,
+    ColorId background,
+    ColorId titleColor,
+    ColorId labelColor,
+    ColorId numberColor
+)
+{
+    if (hasCachedBallScreen_ &&
+        lastScreenKind_ == ScreenKind::Ball &&
+        cachedBallBackground_ == background &&
+        cachedBallTitleColor_ == titleColor &&
+        cachedBallLabelColor_ == labelColor &&
+        cachedBallNumberColor_ == numberColor &&
+        cachedBallNumber_ == ballNumber &&
+        strncmp(cachedBallTitle_, title, MAX_TITLE_LENGTH) == 0) {
+        return;
+    }
+
+    tft_.fillScreen(colorFor(background));
+    drawCenteredText(title, TITLE_Y, 3, titleColor);
+    drawCenteredText("Ball", BALL_LABEL_Y, 3, labelColor);
+
+    char numberText[4];
+    snprintf(numberText, sizeof(numberText), "%u", ballNumber);
+    drawCenteredText(numberText, BALL_NUMBER_Y, BALL_NUMBER_TEXT_SIZE, numberColor);
+
+    strncpy(cachedBallTitle_, title, MAX_TITLE_LENGTH - 1);
+    cachedBallTitle_[MAX_TITLE_LENGTH - 1] = '\0';
+    cachedBallNumber_ = ballNumber;
+    cachedBallBackground_ = background;
+    cachedBallTitleColor_ = titleColor;
+    cachedBallLabelColor_ = labelColor;
+    cachedBallNumberColor_ = numberColor;
+    hasCachedBallScreen_ = true;
+    lastScreenKind_ = ScreenKind::Ball;
 }
 
 uint16_t TftDisplayManager::colorFor(ColorId color) const

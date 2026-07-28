@@ -39,6 +39,22 @@ public:
         ColorId lineColor = ColorId::White
     );
 
+    // Fixed layout for "whose turn + which ball" (Mode1RoundRobin):
+    // title (e.g. player name, same size/position as showStatusScreen()'s
+    // title) with a "Ball" label directly beneath it at the same size,
+    // then the ball number itself in a very large font filling most of
+    // the rest of the screen. A dedicated method rather than another
+    // showStatusScreen() line since the number needs a much bigger,
+    // fixed text size than the generic title+lines layout supports.
+    void showBallScreen(
+        const char* title,
+        uint8_t ballNumber,
+        ColorId background = ColorId::Black,
+        ColorId titleColor = ColorId::White,
+        ColorId labelColor = ColorId::White,
+        ColorId numberColor = ColorId::White
+    );
+
 private:
     static constexpr uint8_t MAX_LINES = 5;
     static constexpr uint8_t MAX_LINE_LENGTH = 32;
@@ -47,7 +63,19 @@ private:
     static constexpr int16_t FIRST_LINE_Y = 90;
     static constexpr int16_t LINE_SPACING = 35;
 
+    static constexpr int16_t BALL_LABEL_Y = 70;
+    static constexpr int16_t BALL_NUMBER_Y = 110;
+    static constexpr uint8_t BALL_NUMBER_TEXT_SIZE = 16;
+
     Adafruit_ST7789 tft_;
+
+    // Which of showStatusScreen()/showBallScreen() last actually drew
+    // the physical screen -- each method's cache-hit check also
+    // requires this to match its own kind, so switching between the
+    // two always redraws even if the other kind's stale cached content
+    // happens to still match (they track completely separate fields).
+    enum class ScreenKind : uint8_t { None, Status, Ball };
+    ScreenKind lastScreenKind_ = ScreenKind::None;
 
     bool hasCachedScreen_ = false;
     char cachedTitle_[MAX_TITLE_LENGTH] = "";
@@ -56,6 +84,14 @@ private:
     ColorId cachedBackground_ = ColorId::Black;
     ColorId cachedTitleColor_ = ColorId::White;
     ColorId cachedLineColor_ = ColorId::White;
+
+    bool hasCachedBallScreen_ = false;
+    char cachedBallTitle_[MAX_TITLE_LENGTH] = "";
+    uint8_t cachedBallNumber_ = 0;
+    ColorId cachedBallBackground_ = ColorId::Black;
+    ColorId cachedBallTitleColor_ = ColorId::White;
+    ColorId cachedBallLabelColor_ = ColorId::White;
+    ColorId cachedBallNumberColor_ = ColorId::White;
 
     uint16_t colorFor(ColorId color) const;
 };

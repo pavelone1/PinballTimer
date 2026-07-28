@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include "SystemTypes.h"
+#include "io/ButtonSwitchIo.h"
 
 // Polls and debounces the five physical button switches (4 player +
 // Action) and produces press/release/short-press/long-press events.
@@ -24,6 +25,8 @@ private:
     static constexpr unsigned long DEBOUNCE_MS = 30;
     static constexpr unsigned long LONG_PRESS_MS = 600;
     static constexpr uint8_t EVENT_QUEUE_SIZE = 16;
+
+    ButtonSwitchIo switchIo_;
 
     bool rawState_[BUTTON_COUNT] = {};
     bool stableState_[BUTTON_COUNT] = {};

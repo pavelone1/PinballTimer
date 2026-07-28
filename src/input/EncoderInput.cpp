@@ -17,11 +17,21 @@ void EncoderInput::update()
 {
     const unsigned long now = millis();
 
-    const long currentPosition = encoder_.getCount();
+    // Integer division truncates toward zero, not floor -- fine here
+    // since only relative movement (direction, one event per detent)
+    // is ever consumed, nothing reads an absolute position across a
+    // zero crossing.
+    const long currentPosition = encoder_.getCount() / COUNTS_PER_DETENT;
     if (currentPosition != lastPosition_) {
+        // Raw PCNT sign is inverted from physical rotation direction
+        // on this KY-040/wiring -- flipped here so RotatedClockwise
+        // always means "physically clockwise", matching every menu's
+        // down=clockwise convention. Not yet verified on real REV2
+        // hardware (app-rev2 hasn't been flashed) -- reverify once it
+        // is, since this is a wiring-dependent fact, not a logic one.
         const EncoderEventType type = currentPosition > lastPosition_
-            ? EncoderEventType::RotatedClockwise
-            : EncoderEventType::RotatedCounterClockwise;
+            ? EncoderEventType::RotatedCounterClockwise
+            : EncoderEventType::RotatedClockwise;
 
         while (lastPosition_ != currentPosition) {
             lastPosition_ += (currentPosition > lastPosition_) ? 1 : -1;

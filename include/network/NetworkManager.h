@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <IPAddress.h>
 
 // Handles WiFi connection lifecycle only -- it does not interpret
 // game commands or know anything about DirectorControl. Connects
@@ -22,6 +23,7 @@ public:
 
     NetworkConnectionState connectionState() const;
     bool isConnected() const;
+    IPAddress localIP() const;
 
     // Lowers activity (disconnects) to save power without forgetting
     // the configured credentials; update()/exitStandby() resumes.

@@ -131,6 +131,16 @@ PlayerStatus PlayerManager::status(PlayerId player) const
     return players_[static_cast<uint8_t>(player)].status;
 }
 
+void PlayerManager::setRoundsRemaining(PlayerId player, uint8_t rounds)
+{
+    players_[static_cast<uint8_t>(player)].roundsRemaining = rounds;
+}
+
+uint8_t PlayerManager::roundsRemaining(PlayerId player) const
+{
+    return players_[static_cast<uint8_t>(player)].roundsRemaining;
+}
+
 void PlayerManager::setModeData(PlayerId player, uint8_t index, uint8_t value)
 {
     if (index >= MODE_DATA_SIZE) {

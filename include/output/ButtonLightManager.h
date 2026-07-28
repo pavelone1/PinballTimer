@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include "SystemTypes.h"
+#include "io/ButtonLightIo.h"
 
 // Physical colors are fixed per button (not RGB) -- driven digitally
 // through the ULN2803 (on/off only, no PWM on this hardware, so no
@@ -64,6 +65,7 @@ private:
 
     static constexpr uint8_t BUTTON_COUNT = static_cast<uint8_t>(ButtonId::Count);
 
+    ButtonLightIo lightIo_;
     ButtonLightState state_[BUTTON_COUNT];
 
     void render(uint8_t index);

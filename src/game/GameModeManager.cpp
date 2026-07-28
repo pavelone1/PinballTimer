@@ -54,6 +54,23 @@ void GameModeManager::initializeActiveMode()
     initialized_ = true;
 }
 
+bool GameModeManager::restoreActiveMode()
+{
+    if (activeMode_ == nullptr || initialized_ || context_ == nullptr) {
+        return false;
+    }
+
+    if (!activeMode_->restoreState(*context_)) {
+        return false;
+    }
+
+    initialized_ = true;
+    gameStarted_ = true;
+    firstTimerStarted_ = true;
+    paused_ = false;
+    return true;
+}
+
 GameMode* GameModeManager::activeMode() const
 {
     return activeMode_;
@@ -62,6 +79,20 @@ GameMode* GameModeManager::activeMode() const
 bool GameModeManager::hasActiveMode() const
 {
     return activeMode_ != nullptr;
+}
+
+uint8_t GameModeManager::modeCount() const
+{
+    return modeCount_;
+}
+
+GameMode* GameModeManager::modeAt(uint8_t index) const
+{
+    if (index >= modeCount_) {
+        return nullptr;
+    }
+
+    return modes_[index];
 }
 
 bool GameModeManager::setPlayerCount(uint8_t count)
@@ -81,6 +112,30 @@ bool GameModeManager::setPlayerCount(uint8_t count)
 uint8_t GameModeManager::playerCount() const
 {
     return playerCount_;
+}
+
+bool GameModeManager::setPlayerOption(PlayerId player, const char* key, long value)
+{
+    if (activeMode_ == nullptr || context_ == nullptr) {
+        return false;
+    }
+    return activeMode_->setPlayerOption(*context_, player, key, value);
+}
+
+long GameModeManager::playerOption(PlayerId player, const char* key) const
+{
+    if (activeMode_ == nullptr || context_ == nullptr) {
+        return 0;
+    }
+    return activeMode_->playerOption(*context_, player, key);
+}
+
+bool GameModeManager::setLiveModeOption(const char* key, long value)
+{
+    if (activeMode_ == nullptr || context_ == nullptr) {
+        return false;
+    }
+    return activeMode_->setLiveModeOption(*context_, key, value);
 }
 
 void GameModeManager::notifyLocalStart()
@@ -172,7 +227,11 @@ void GameModeManager::update()
 void GameModeManager::handleButtonEvent(const ButtonEvent& event)
 {
     if (activeMode_ != nullptr && context_ != nullptr) {
-        activeMode_->onButtonEvent(*context_, event);
+        const bool justStarted = activeMode_->onButtonEvent(*context_, event);
+        if (justStarted) {
+            notifyLocalStart();
+            notifyGameStart();
+        }
     }
 }
 

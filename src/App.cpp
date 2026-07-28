@@ -1,7 +1,11 @@
 #include "App.h"
 
 #include <Arduino.h>
+#include <WiFi.h>
+#include <cstdio>
+#include "FeatureFlags.h"
 #include "modes/ModeRegistry.h"
+#include "Secrets.h"
 
 App::App()
     : context_{
@@ -11,7 +15,9 @@ App::App()
           numericDisplays_,
           tft_,
           buttonLights_,
-          timers_
+          buzzer_,
+          timers_,
+          gameStorage_
       }
 {
 }
@@ -23,40 +29,93 @@ void App::begin()
 
     settings_.begin();
     gameStorage_.begin();
+    machineDatabase_.begin();
 
     buttonInput_.begin();
     encoderInput_.begin();
     numericDisplays_.begin();
     tft_.begin();
     buttonLights_.begin();
+    buzzer_.begin();
 
     timers_.begin();
     players_.begin();
     buttonAssignments_.begin();
     displayAssignments_.begin();
 
+    // Player names/button assignments live in GameStorage/NVS (persist
+    // across reboots); PlayerManager itself is RAM-only and defaults to
+    // blank names + identity button assignment on every begin(), so
+    // this needs to run every boot, not just once ever. BootMenu's
+    // Player Info screen and DirectorDashboard's /game-setup page both
+    // write through to both when edited.
+    for (uint8_t i = 0; i < static_cast<uint8_t>(PlayerId::Count); ++i) {
+        const PlayerId player = static_cast<PlayerId>(i);
+        players_.setName(player, gameStorage_.playerName(player));
+        players_.setButtonAssignment(player, gameStorage_.playerButtonAssignment(player));
+    }
+
     gameModeManager_.begin(context_);
     ModeRegistry::registerAllModes(gameModeManager_);
 
-    network_.begin(settings_.wifiSsid(), settings_.wifiPassword());
     power_.begin(context_);
-    statusReporter_.begin(gameModeManager_, players_, displayAssignments_, timers_, network_, settings_, directorControl_);
-    directorControl_.begin(gameModeManager_, context_, statusReporter_, power_);
 
-    // Resume the last-used mode, or default to Mode 1 (the only mode
-    // that exists) if none was saved yet. There is no config UI or
-    // on-device mode-selection menu to pick a mode/count otherwise,
-    // so this is the only selection path until one exists. Must call
-    // initializeActiveMode() here -- without it, setupAssignments()
-    // never runs, so the local Action-button start flow would
-    // silently do nothing (no timers/assignments would exist).
-    const uint8_t lastMode = settings_.lastSelectedMode();
-    const uint8_t modeToSelect = lastMode != 0 ? lastMode : Mode1RoundRobin::MODE_ID;
+    // WiFi/HTTP subsystem is temporarily disabled -- see
+    // include/FeatureFlags.h. Everything below needs the WiFi radio
+    // up (network stack, director HTTP API, OTA, WiFi portal,
+    // dashboard), so it's all skipped together rather than partially
+    // bringing things up that would then have nothing to talk to.
+    if (kWifiFeatureEnabled) {
+        // First-boot-only bootstrap: Secrets.h (gitignored, see
+        // Secrets.h.example) supplies the one fixed venue network this
+        // device connects to, if set. Once SettingsStorage has a saved
+        // SSID this is skipped, so editing Secrets.h after a device's
+        // first boot has no effect -- that's intentional, not a bug: NVS,
+        // not the compiled-in constant, is the source of truth from then
+        // on.
+        if (settings_.wifiSsid()[0] == '\0') {
+            settings_.setWifiCredentials(WIFI_SSID, WIFI_PASSWORD);
+        }
 
-    if (gameModeManager_.selectMode(modeToSelect)) {
-        gameModeManager_.setPlayerCount(gameModeManager_.activeMode()->defaultPlayerCount());
-        gameModeManager_.initializeActiveMode();
+        // Brings up the underlying network stack (lwIP's TCP/IP task,
+        // netif, the WiFi driver) unconditionally, regardless of
+        // WifiOperatingMode -- directorControl_.begin() below starts an
+        // HTTP server, which needs that stack already running to open its
+        // listening socket. network_.begin()/wifiPortal_.applyStartupMode()
+        // further down also call WiFi.mode() themselves (harmless,
+        // idempotent), but each is conditional on the operating mode --
+        // AccessPointOnly in particular skips network_.begin() outright
+        // (see below), which used to leave nothing to bring the stack up
+        // before directorControl_.begin() ran. Since that's saved to NVS,
+        // the resulting crash survived reboots. See CLAUDE.md's "Firmware
+        // status" for the full story on why skipping this crashes
+        // httpd_start() with lwIP's "assert failed:
+        // tcpip_send_msg_wait_sem ... (Invalid mbox)".
+        WiFi.mode(WIFI_AP_STA);
+
+        // AccessPointOnly means the operator explicitly chose adhoc-only
+        // (e.g. via BootMenu/DirectorMenu's "Use Hotspot Only" item) --
+        // honor that by not even attempting STA. StationOnly/Both both
+        // want the venue network; applyStartupMode() below additionally
+        // brings the hotspot up for Both (and for AccessPointOnly).
+        if (settings_.wifiOperatingMode() != WifiOperatingMode::AccessPointOnly) {
+            network_.begin(settings_.wifiSsid(), settings_.wifiPassword()); // no-op if still no SSID (empty Secrets.h)
+        }
+
+        statusReporter_.begin(gameModeManager_, players_, displayAssignments_, timers_, network_, settings_, directorControl_, power_, gameStorage_);
+        directorControl_.begin(gameModeManager_, context_, statusReporter_, power_);
+        ota_.begin(settings_.deviceName(), OTA_PASSWORD, tft_);
+        wifiPortal_.begin(directorControl_.server(), settings_, tft_, WIFI_PORTAL_PASSWORD);
+        wifiPortal_.applyStartupMode(); // brings the hotspot up in the background if the saved WifiOperatingMode calls for it
+        directorDashboard_.begin(directorControl_.server()); // /game-setup + /game-live, same shared httpd instance
     }
+
+    // BootMenu is the boot screen (see App::update()'s input routing)
+    // -- picking "Start Game"/"Resume Game"/a mode from its Select
+    // Game Mode submenu is now what selects/initializes/restores the
+    // active GameMode; nothing here does that automatically anymore.
+    bootMenu_.begin(gameModeManager_, settings_, gameStorage_, players_, tft_, wifiPortal_, machineDatabase_.catalog());
+    bootMenu_.open();
 
     state_ = SystemState::Setup;
 }
@@ -76,13 +135,67 @@ void App::update()
         handleEncoderEvent(encoderEvent);
     }
 
-    timers_.update();
-    gameModeManager_.update();
+    updateDirectorMenuHold();
+    wifiSetupMenu_.update();
 
-    // Drain timer events. No concrete handler is wired yet beyond
-    // NumericDisplayManager's own automatic negative-time flash --
-    // see Mode1RoundRobin.h's note on the pending zero-crossing rule
-    // change (stop-at-zero + buzzer) still to be discussed/implemented.
+    // WifiSetupMenu can close itself (connect succeeded) without any
+    // input event to hang the resume off of -- catch that here. Which
+    // menu opened it decides what "done" means: resume an in-progress
+    // game (DirectorMenu) or come back to the boot screen (BootMenu).
+    const bool wifiSetupIsOpen = wifiSetupMenu_.isOpen();
+    if (!wifiSetupIsOpen && wifiSetupWasOpen_) {
+        if (wifiHandoffFromBootMenu_) {
+            wifiHandoffFromBootMenu_ = false;
+            bootMenu_.open();
+        } else {
+            gameModeManager_.notifyResume();
+        }
+    }
+    wifiSetupWasOpen_ = wifiSetupIsOpen;
+
+    wifiPortal_.update();
+
+    // Same idea for WifiPortal. Only re-issues NetworkManager::begin()
+    // if the operator didn't just choose adhoc-only (AccessPointOnly)
+    // -- otherwise this would silently undo a "Use Hotspot Only"
+    // choice the moment its confirmation screen is dismissed.
+    const bool wifiPortalIsOpen = wifiPortal_.isOpen();
+    if (!wifiPortalIsOpen && wifiPortalWasOpen_) {
+        if (settings_.wifiOperatingMode() != WifiOperatingMode::AccessPointOnly) {
+            network_.begin(settings_.wifiSsid(), settings_.wifiPassword());
+        }
+
+        if (wifiHandoffFromBootMenu_) {
+            wifiHandoffFromBootMenu_ = false;
+            bootMenu_.open();
+        } else {
+            gameModeManager_.notifyResume();
+        }
+    }
+    wifiPortalWasOpen_ = wifiPortalIsOpen;
+
+    timers_.update();
+
+    // Skip the active mode's own update() -- which redraws the TFT via
+    // Mode1RoundRobin::renderGameStatus() -- while any menu currently
+    // owns the screen, otherwise it clobbers whatever the menu just
+    // drew on the very next tick (e.g. DirectorMenu flashing open then
+    // immediately reverting to "GAME OVER"/the ball screen underneath
+    // it). Every path that opens a menu mid-game already calls
+    // notifyPause() first (or no round has started yet), so the active
+    // timer is already stopped either way -- nothing meaningful is
+    // lost by skipping this while a menu is up.
+    const bool anyMenuOwnsScreen = bootMenu_.isOpen() || directorMenu_.isOpen() || wifiSetupIsOpen || wifiPortalIsOpen;
+    if (!anyMenuOwnsScreen) {
+        gameModeManager_.update();
+    }
+
+    // Drain any zero-crossing events the active mode didn't consume
+    // itself. Mode1RoundRobin::update() (called just above via
+    // gameModeManager_.update()) already polls and acts on its own
+    // active-player timer's crossing there -- this is just a safety
+    // net so the shared queue can't grow unbounded if some future mode
+    // creates timers without draining its own events.
     TimerId crossedTimerId;
     while (timers_.pollZeroCrossingEvent(crossedTimerId)) {
         (void)crossedTimerId;
@@ -96,11 +209,58 @@ void App::update()
     numericDisplays_.update();
     tft_.update();
     buttonLights_.update();
+    buzzer_.update();
 
-    network_.update();
-    directorControl_.update();
+    // WiFi/HTTP subsystem disabled -- see include/FeatureFlags.h and
+    // App::begin(). None of these were begun, so nothing here to poll.
+    if (kWifiFeatureEnabled) {
+        // Skipped while WifiPortal owns the radio -- its own raw WiFi.*
+        // calls would otherwise race NetworkManager's independent
+        // reconnect-retry timer for the same interface (see WifiPortal.h).
+        // Also skipped entirely in AccessPointOnly mode -- letting
+        // NetworkManager keep retrying STA in the background would fight
+        // the operator's explicit "adhoc only" choice.
+        if (!wifiPortalIsOpen && settings_.wifiOperatingMode() != WifiOperatingMode::AccessPointOnly) {
+            network_.update();
+
+            const bool isConnected = network_.isConnected();
+            if (isConnected && !wasConnected_) {
+                Serial.print("[WiFi] Connected, IP: ");
+                Serial.println(network_.localIP());
+            } else if (!isConnected && wasConnected_) {
+                Serial.println("[WiFi] Disconnected");
+            }
+            wasConnected_ = isConnected;
+        }
+
+        directorControl_.update();
+        directorDashboard_.update();
+        ota_.update();
+    }
 
     power_.update();
+
+    // Drain battery events. buzzer_ is now wired for button/encoder
+    // input feedback (see handleButtonEvent/handleEncoderEvent above)
+    // but nothing calls it for battery events yet, and no low-battery
+    // screen is wired to the TFT either, so for now this just logs,
+    // and the same data is available live via StatusReporter's JSON
+    // (batteryAvailable/batteryVoltage/
+    // batteryPercent/powerState) for a director dashboard to react to.
+    BatteryEventType batteryEvent;
+    while (power_.pollBatteryEvent(batteryEvent)) {
+        switch (batteryEvent) {
+            case BatteryEventType::Warning20:
+                Serial.println("[Battery] 20% remaining");
+                break;
+            case BatteryEventType::Warning10:
+                Serial.println("[Battery] 10% remaining");
+                break;
+            case BatteryEventType::Critical5:
+                Serial.println("[Battery] 5% remaining -- entering Critical state");
+                break;
+        }
+    }
 
     syncSystemState();
 }
@@ -114,6 +274,43 @@ void App::handleButtonEvent(const ButtonEvent& event)
 {
     power_.notifyActivity();
 
+    if (event.type == ButtonEventType::Pressed) {
+        buzzer_.beep();
+    }
+
+    // Action press is a shortcut to cancel/close whichever on-device
+    // menu is open, symmetric with the hold-to-open gesture. Every
+    // other button is ignored -- whichever menu is open has exclusive
+    // input focus while the game stays paused for it.
+    if (wifiPortal_.isOpen()) {
+        if (event.button == ButtonId::Action && event.type == ButtonEventType::Pressed) {
+            wifiPortal_.close();
+        }
+        return;
+    }
+
+    if (wifiSetupMenu_.isOpen()) {
+        if (event.button == ButtonId::Action && event.type == ButtonEventType::Pressed) {
+            wifiSetupMenu_.close();
+        }
+        return;
+    }
+
+    if (directorMenu_.isOpen()) {
+        if (event.button == ButtonId::Action && event.type == ButtonEventType::Pressed) {
+            directorMenu_.close(tft_);
+            gameModeManager_.notifyResume();
+        }
+        return;
+    }
+
+    // BootMenu has no Action-button role (no "cancel" target exists
+    // at the boot screen -- see BootMenu.h) -- every button is
+    // ignored here, only the encoder navigates it.
+    if (bootMenu_.isOpen()) {
+        return;
+    }
+
     if (directorControl_.localControlsLocked()) {
         return;
     }
@@ -125,6 +322,91 @@ void App::handleEncoderEvent(const EncoderEvent& event)
 {
     power_.notifyActivity();
 
+    if (event.type == EncoderEventType::RotatedClockwise ||
+        event.type == EncoderEventType::RotatedCounterClockwise) {
+        buzzer_.click();
+    } else if (event.type == EncoderEventType::SwShortPress) {
+        buzzer_.tone();
+    } else if (event.type == EncoderEventType::SwLongPress) {
+        buzzer_.boop();
+    }
+
+    // TEMP DIAGNOSTIC: unconditional, independent of any menu's own
+    // logic -- proves whether SwShortPress/SwLongPress ever reach
+    // here at all.
+    if (event.type == EncoderEventType::SwShortPress) {
+        static uint16_t shortPressCount = 0;
+        shortPressCount++;
+        char buf[24];
+        snprintf(buf, sizeof(buf), "SHORT x%u   ", shortPressCount);
+        tft_.drawCenteredText(buf, 300, 2, ColorId::Magenta);
+    } else if (event.type == EncoderEventType::SwLongPress) {
+        static uint16_t longPressCount = 0;
+        longPressCount++;
+        char buf[24];
+        snprintf(buf, sizeof(buf), "LONG x%u   ", longPressCount);
+        tft_.drawCenteredText(buf, 300, 2, ColorId::Orange);
+    }
+
+    if (wifiPortal_.isOpen()) {
+        return; // phone-driven, not encoder-driven -- nothing to route
+    }
+
+    if (wifiSetupMenu_.isOpen()) {
+        wifiSetupMenu_.handleEncoderEvent(event);
+        return;
+    }
+
+    if (directorMenu_.isOpen()) {
+        const MenuHandoff outcome = directorMenu_.handleEncoderEvent(event);
+
+        if (outcome == MenuHandoff::OpenWifiSetup) {
+            directorMenu_.close(tft_); // UI cleanup only -- stays paused, hands off rather than resuming
+            wifiSetupMenu_.open(network_, settings_, tft_);
+        } else if (outcome == MenuHandoff::OpenWifiPortal) {
+            directorMenu_.close(tft_); // UI cleanup only -- stays paused, hands off rather than resuming
+            wifiPortal_.open();
+        } else if (outcome == MenuHandoff::Close) {
+            directorMenu_.close(tft_);
+            gameModeManager_.notifyResume();
+        } else if (outcome == MenuHandoff::EndGame) {
+            // Reset already happened inside DirectorMenu's "End Game"
+            // item (notifyReset()) -- no notifyResume() here, since
+            // there's no game left to resume; go straight to BootMenu.
+            directorMenu_.close(tft_);
+            bootMenu_.open();
+        }
+
+        return;
+    }
+
+    if (bootMenu_.isOpen()) {
+        const MenuHandoff outcome = bootMenu_.handleEncoderEvent(event);
+
+        if (outcome == MenuHandoff::OpenWifiSetup) {
+            bootMenu_.close();
+            wifiHandoffFromBootMenu_ = true;
+            wifiSetupMenu_.open(network_, settings_, tft_);
+        } else if (outcome == MenuHandoff::OpenWifiPortal) {
+            bootMenu_.close();
+            wifiHandoffFromBootMenu_ = true;
+            wifiPortal_.open();
+        } else if (outcome == MenuHandoff::RevertToAdhoc) {
+            bootMenu_.close();
+            wifiHandoffFromBootMenu_ = true;
+            wifiPortal_.revertToAdhoc();
+        } else if (outcome == MenuHandoff::Close) {
+            // Start Game / Resume Game / Select Game Mode already did
+            // their work synchronously inside BootMenu -- the active
+            // mode is now selected/initialized (or restored), so
+            // closing here is enough; normal game-input routing below
+            // takes over on the next event.
+            bootMenu_.close();
+        }
+
+        return;
+    }
+
     if (directorControl_.localControlsLocked()) {
         return;
     }
@@ -132,8 +414,64 @@ void App::handleEncoderEvent(const EncoderEvent& event)
     gameModeManager_.handleEncoderEvent(event);
 }
 
+void App::updateDirectorMenuHold()
+{
+    if (directorMenu_.isOpen() || bootMenu_.isOpen()) {
+        return;
+    }
+
+    if (!buttonInput_.isPressed(ButtonId::Action)) {
+        directorHoldFired_ = false;
+        return;
+    }
+
+    if (directorHoldFired_) {
+        return;
+    }
+
+    // Deliberately NOT gated on directorControl_.localControlsLocked(),
+    // unlike handleButtonEvent()/handleEncoderEvent()'s in-game input
+    // routing. Local Lock is meant to stop a local PLAYER's button
+    // presses from interfering with a remotely-run game -- it must
+    // never also lock the DIRECTOR out of their own menu, since
+    // DirectorMenu is the only local place to toggle it back off, and
+    // the alternative (remote UnlockLocalControls) requires WiFi,
+    // which is currently disabled entirely (see FeatureFlags.h). This
+    // used to be gated the same way and it was a real bug: locking
+    // local controls from inside DirectorMenu immediately closes the
+    // menu (see its ToggleLocalLock handling), and with this gate in
+    // place that left no way back in short of a power cycle.
+
+    // Reachable from a running game or the idle pre-round Setup state
+    // (e.g. WiFi setup is often the first thing you'd do on a fresh
+    // device, before ever starting a round) -- gated on the state as
+    // of the end of the previous tick's syncSystemState(). A one-tick
+    // lag against a 5-second hold threshold is not perceptible.
+    // notifyPause() below is a harmless no-op from Setup (Mode1
+    // RoundRobin only acts on it if a round had actually started).
+    if (state_ != SystemState::GameRunning && state_ != SystemState::Setup) {
+        return;
+    }
+
+    if (buttonInput_.heldDurationMs(ButtonId::Action) < DIRECTOR_MENU_HOLD_MS) {
+        return;
+    }
+
+    directorHoldFired_ = true;
+    gameModeManager_.notifyPause();
+    directorMenu_.open(gameModeManager_, directorControl_, players_, tft_);
+}
+
 void App::syncSystemState()
 {
+    // Critical battery is the first (and so far only) concrete
+    // trigger for SystemState::Error -- see PowerManager.h's note on
+    // why a literal deep-sleep shutdown wasn't used at 5% instead.
+    if (power_.state() == PowerState::Critical) {
+        state_ = SystemState::Error;
+        return;
+    }
+
     if (power_.state() == PowerState::Standby) {
         state_ = SystemState::Standby;
         return;
