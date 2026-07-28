@@ -660,3 +660,19 @@ portal, and OTA capabilities:
   - `git diff --check`: passed.
 - The firmware was built but not flashed; sustained on-device WiFi testing is
   still required before the reset issue can be considered conclusively closed.
+
+### 2026-07-28 REV2 Deployment
+
+- Committed the WiFi/database work and the existing Gauntlet pause correction
+  as commit `7a7e72c` and pushed it to `origin/main`.
+- Re-ran verification immediately before deployment:
+  - `pio test -e native`: 50/50 tests passed.
+  - `pio run -e app-rev2`: passed (904,953 bytes flash; 57,988 bytes RAM).
+- Uploaded the `app-rev2` firmware from commit `7a7e72c` over USB to the
+  ESP32-S3 detected on `COM13`.
+- The connected board reported MAC `c0:4e:30:06:f9:28`; its automatic fallback
+  SSID is therefore `PinballTimerF928`.
+- Esptool verified the hash of every written image region and completed with a
+  hard reset via RTS. The upload command reported success.
+- Upload verification confirms the image was written correctly. Runtime WiFi
+  stability and fallback behavior still require observation after boot.
