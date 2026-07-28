@@ -81,6 +81,7 @@ void Mode2Gauntlet::setupAssignments(GameModeContext& context, uint8_t playerCou
     machineRunning_ = false;
     handoff_ = configured_ && session_.start();
     gameOver_ = !handoff_;
+    suppressNextActionRelease_ = false;
     handoffSelection_ = 0;
     confirmRemoval_ = false;
     turns_.reset();
@@ -152,19 +153,50 @@ void Mode2Gauntlet::onReset(GameModeContext& context)
 bool Mode2Gauntlet::onButtonEvent(GameModeContext& context, const ButtonEvent& event)
 {
     if (event.button == ButtonId::Action) {
-        if (event.type == ButtonEventType::Pressed && handoff_) {
-            beginCurrentMachine(context);
-            return !machineRunning_ ? false : true;
+        if (event.type == ButtonEventType::Pressed) {
+            // A Director Menu hold can consume the matching release. Clear any
+            // stale suppression at the start of every new physical press.
+            suppressNextActionRelease_ = false;
+            if (handoff_) {
+                beginCurrentMachine(context);
+                if (machineRunning_) {
+                    // Starting this machine used the press-down. Its release
+                    // must not immediately toggle the new machine into pause.
+                    suppressNextActionRelease_ = true;
+                    return true;
+                }
+            }
+            return false;
         }
-        if (event.type == ButtonEventType::Released && machineRunning_ &&
-            turns_.togglePause()) {
+
+        if (event.type == ButtonEventType::Released) {
+            const bool suppress = suppressNextActionRelease_;
+            suppressNextActionRelease_ = false;
+            if (suppress || !machineRunning_ || !turns_.togglePause()) {
+                return false;
+            }
+
             const PlayerId player =
                 context.buttonAssignments.assignment(turns_.activeButton()).player;
             const TimerId timer = timerIds_[static_cast<uint8_t>(player)];
             if (turns_.paused()) {
                 context.timers.stop(timer);
+                context.buttonLights.setBaseState(
+                    turns_.activeButton(), LightPattern::Off);
+                context.buttonLights.setBaseState(
+                    ButtonId::Action, LightPattern::Blink, FLASH_INTERVAL_MS);
             } else if (turns_.timerRunning()) {
                 context.timers.start(timer);
+                context.buttonLights.setBaseState(
+                    turns_.activeButton(), LightPattern::Solid);
+                context.buttonLights.setBaseState(
+                    ButtonId::Action, LightPattern::Off);
+            } else {
+                context.buttonLights.setBaseState(
+                    turns_.activeButton(), LightPattern::Blink,
+                    FLASH_INTERVAL_MS);
+                context.buttonLights.setBaseState(
+                    ButtonId::Action, LightPattern::Off);
             }
         }
         return false;
@@ -357,6 +389,12 @@ void Mode2Gauntlet::render(GameModeContext& context)
         };
         context.tft.showStatusScreen("Next Game Is", lines,
                                      session_.isFinalMachine() ? 3 : 2);
+        return;
+    }
+    if (turns_.paused()) {
+        const char* lines[] = {"Press White Button", "to Resume"};
+        context.tft.showStatusScreen("PAUSED", lines, 2, ColorId::Black,
+                                     ColorId::Yellow, ColorId::White);
         return;
     }
 

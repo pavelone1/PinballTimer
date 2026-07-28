@@ -1,6 +1,47 @@
 #include "network/DirectorDashboard.h"
 
+#include <cstdio>
+#include <cstring>
+
 namespace {
+
+const char* machineTypeName(MachineType type)
+{
+    switch (type) {
+        case MachineType::EM: return "EM";
+        case MachineType::SolidState: return "Solid State";
+        case MachineType::DMD: return "DMD";
+        case MachineType::Modern: return "Modern";
+    }
+    return "Unknown";
+}
+
+esp_err_t sendJsonString(httpd_req_t* req, const char* value)
+{
+    if (httpd_resp_send_chunk(req, "\"", 1) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    const char* segment = value;
+    for (const char* cursor = value; ; ++cursor) {
+        const char escaped = *cursor;
+        if (escaped != '"' && escaped != '\\' && escaped != '\0') {
+            continue;
+        }
+        if (cursor > segment &&
+            httpd_resp_send_chunk(req, segment, cursor - segment) != ESP_OK) {
+            return ESP_FAIL;
+        }
+        if (escaped == '\0') {
+            break;
+        }
+        const char pair[2] = {'\\', escaped};
+        if (httpd_resp_send_chunk(req, pair, sizeof(pair)) != ESP_OK) {
+            return ESP_FAIL;
+        }
+        segment = cursor + 1;
+    }
+    return httpd_resp_send_chunk(req, "\"", 1);
+}
 
 // ESP32's .rodata is flash-mapped and directly readable (unlike AVR),
 // so this doesn't need PROGMEM/send_P -- a plain const char* is fine
@@ -25,6 +66,7 @@ button{background:#2a8a4f;color:#fff;border:none;cursor:pointer;margin-top:8px}
 #status{margin-top:14px;font-weight:bold;min-height:1.2em}
 </style></head><body>
 <h1>PinballTimer Game Setup</h1>
+<p><a href="/game-live">Live game</a> &nbsp; <a href="/machines">Machines</a> &nbsp; <a href="/">WiFi</a></p>
 
 <h2>Game</h2>
 <label>Mode</label>
@@ -173,6 +215,7 @@ h1{font-size:20px}
 #gameover{color:#e55;font-weight:bold;margin-top:16px;font-size:20px}
 </style></head><body>
 <h1>PinballTimer -- Live</h1>
+<p><a href="/game-setup">Game setup</a> &nbsp; <a href="/machines">Machines</a> &nbsp; <a href="/">WiFi</a></p>
 <div id="machine"></div>
 <div id="players"></div>
 <div id="gameover"></div>
@@ -227,10 +270,39 @@ poll();
 </body></html>
 )HTML";
 
+const char kMachinesPageHtml[] = R"HTML(<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Machine Database</title>
+<style>
+body{font-family:sans-serif;max-width:720px;margin:24px auto;padding:0 16px;background:#111;color:#eee}
+a{color:#8ac} table{width:100%;border-collapse:collapse;margin-top:18px}
+th,td{text-align:left;padding:9px;border-bottom:1px solid #333} th{color:#8ac}
+#message{color:#aaa;margin-top:18px}
+</style></head><body>
+<h1>Machine Database</h1>
+<p><a href="/game-live">Live game</a> &nbsp; <a href="/game-setup">Game setup</a> &nbsp; <a href="/">WiFi</a></p>
+<table><thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Balls</th><th>Play time</th></tr></thead>
+<tbody id="machines"></tbody></table>
+<div id="message">Loading...</div>
+<script>
+fetch('/api/machines').then(function(r){return r.json();}).then(function(data){
+  var body=document.getElementById('machines');
+  data.machines.forEach(function(m){
+    var row=document.createElement('tr');
+    [m.id,m.name,m.type,m.ballCount,m.hasPlayTime ? m.playTimeSeconds+' sec' : 'Default ('+m.resolvedPlayTimeSeconds+' sec)']
+      .forEach(function(value){var cell=document.createElement('td');cell.textContent=value;row.appendChild(cell);});
+    body.appendChild(row);
+  });
+  document.getElementById('message').textContent=data.count ? data.count+' machine(s), read only' : 'No machines';
+}).catch(function(){document.getElementById('message').textContent='Unable to read machine database';});
+</script></body></html>
+)HTML";
+
 } // namespace
 
-void DirectorDashboard::begin(httpd_handle_t server)
+void DirectorDashboard::begin(httpd_handle_t server, const MachineCatalog& machineCatalog)
 {
+    machineCatalog_ = &machineCatalog;
     httpd_uri_t setupUri = {};
     setupUri.uri = "/game-setup";
     setupUri.method = HTTP_GET;
@@ -244,6 +316,20 @@ void DirectorDashboard::begin(httpd_handle_t server)
     liveUri.handler = &handleLivePageTrampoline;
     liveUri.user_ctx = this;
     httpd_register_uri_handler(server, &liveUri);
+
+    httpd_uri_t machinesPageUri = {};
+    machinesPageUri.uri = "/machines";
+    machinesPageUri.method = HTTP_GET;
+    machinesPageUri.handler = &handleMachinesPageTrampoline;
+    machinesPageUri.user_ctx = this;
+    httpd_register_uri_handler(server, &machinesPageUri);
+
+    httpd_uri_t machinesApiUri = {};
+    machinesApiUri.uri = "/api/machines";
+    machinesApiUri.method = HTTP_GET;
+    machinesApiUri.handler = &handleMachinesApiTrampoline;
+    machinesApiUri.user_ctx = this;
+    httpd_register_uri_handler(server, &machinesApiUri);
 }
 
 void DirectorDashboard::update()
@@ -266,6 +352,57 @@ esp_err_t DirectorDashboard::handleLivePage(httpd_req_t* req)
     return ESP_OK;
 }
 
+esp_err_t DirectorDashboard::handleMachinesPage(httpd_req_t* req)
+{
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_send(req, kMachinesPageHtml, HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
+}
+
+esp_err_t DirectorDashboard::handleMachinesApi(httpd_req_t* req)
+{
+    httpd_resp_set_type(req, "application/json");
+    char buffer[192];
+    snprintf(buffer, sizeof(buffer), "{\"count\":%u,\"machines\":[",
+        machineCatalog_ ? machineCatalog_->count() : 0);
+    if (httpd_resp_send_chunk(req, buffer, HTTPD_RESP_USE_STRLEN) != ESP_OK) {
+        return ESP_FAIL;
+    }
+
+    if (machineCatalog_) {
+        for (uint16_t i = 0; i < machineCatalog_->count(); ++i) {
+            const MachineRecord* machine = machineCatalog_->at(i);
+            if (!machine) {
+                continue;
+            }
+            snprintf(buffer, sizeof(buffer),
+                "%s{\"id\":%lu,\"name\":",
+                i == 0 ? "" : ",",
+                static_cast<unsigned long>(machine->id));
+            if (httpd_resp_send_chunk(req, buffer, HTTPD_RESP_USE_STRLEN) != ESP_OK ||
+                sendJsonString(req, machine->name) != ESP_OK) {
+                return ESP_FAIL;
+            }
+            snprintf(buffer, sizeof(buffer),
+                ",\"type\":\"%s\",\"ballCount\":%u,\"hasPlayTime\":%s,"
+                "\"playTimeSeconds\":%u,\"resolvedPlayTimeSeconds\":%u}",
+                machineTypeName(machine->type),
+                machine->ballCount,
+                machine->hasPlayTime ? "true" : "false",
+                machine->playTimeSeconds,
+                machine->resolvedPlayTimeSeconds());
+            if (httpd_resp_send_chunk(req, buffer, HTTPD_RESP_USE_STRLEN) != ESP_OK) {
+                return ESP_FAIL;
+            }
+        }
+    }
+
+    if (httpd_resp_send_chunk(req, "]}", 2) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    return httpd_resp_send_chunk(req, nullptr, 0);
+}
+
 esp_err_t DirectorDashboard::handleSetupPageTrampoline(httpd_req_t* req)
 {
     return static_cast<DirectorDashboard*>(req->user_ctx)->handleSetupPage(req);
@@ -274,4 +411,14 @@ esp_err_t DirectorDashboard::handleSetupPageTrampoline(httpd_req_t* req)
 esp_err_t DirectorDashboard::handleLivePageTrampoline(httpd_req_t* req)
 {
     return static_cast<DirectorDashboard*>(req->user_ctx)->handleLivePage(req);
+}
+
+esp_err_t DirectorDashboard::handleMachinesPageTrampoline(httpd_req_t* req)
+{
+    return static_cast<DirectorDashboard*>(req->user_ctx)->handleMachinesPage(req);
+}
+
+esp_err_t DirectorDashboard::handleMachinesApiTrampoline(httpd_req_t* req)
+{
+    return static_cast<DirectorDashboard*>(req->user_ctx)->handleMachinesApi(req);
 }

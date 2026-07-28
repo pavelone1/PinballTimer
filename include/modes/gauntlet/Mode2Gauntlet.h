@@ -54,6 +54,7 @@ private:
     bool machineRunning_ = false;
     bool handoff_ = false;
     bool gameOver_ = false;
+    bool suppressNextActionRelease_ = false;
     uint8_t handoffSelection_ = 0; // 0=start, 1=skip, 2=remove
     bool confirmRemoval_ = false;
 

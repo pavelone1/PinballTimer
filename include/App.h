@@ -99,6 +99,10 @@ private:
     // Edge-detects the Disconnected/Connecting -> Connected
     // transition so the assigned IP is logged once, not every tick.
     bool wasConnected_ = false;
+    bool otaStarted_ = false;
+    unsigned long wifiDisconnectedSinceMs_ = 0;
+
+    static constexpr unsigned long WIFI_FALLBACK_AP_DELAY_MS = 30000;
 
     // WifiSetupMenu can close itself autonomously (connect success),
     // not just from an input event -- this edge-detects that so

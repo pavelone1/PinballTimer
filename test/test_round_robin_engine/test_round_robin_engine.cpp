@@ -43,10 +43,23 @@ void test_pause_blocks_player_press()
         static_cast<int>(engine.handlePlayerPress(ButtonId::Player1)));
 }
 
+void test_pause_resume_preserves_running_turn()
+{
+    TEST_ASSERT_TRUE(engine.start(assignments, players));
+    TEST_ASSERT_TRUE(engine.togglePause());
+    TEST_ASSERT_TRUE(engine.paused());
+    TEST_ASSERT_TRUE(engine.timerRunning());
+
+    TEST_ASSERT_TRUE(engine.togglePause());
+    TEST_ASSERT_FALSE(engine.paused());
+    TEST_ASSERT_TRUE(engine.timerRunning());
+}
+
 int main()
 {
     UNITY_BEGIN();
     RUN_TEST(test_start_and_two_press_handoff_mechanism);
     RUN_TEST(test_pause_blocks_player_press);
+    RUN_TEST(test_pause_resume_preserves_running_turn);
     return UNITY_END();
 }

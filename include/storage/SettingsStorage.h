@@ -3,13 +3,13 @@
 #include <cstdint>
 #include <Preferences.h>
 
-// How this device uses WiFi, persisted across reboots. See
-// network/WifiPortal.h for how AP+STA coexist ("Both") without one
-// clobbering the other's WiFi.mode().
+// How this device uses WiFi, persisted across reboots. The runtime
+// uses StationOnly or AccessPointOnly exclusively. Both is retained
+// only to migrate settings written by older firmware.
 enum class WifiOperatingMode : uint8_t {
     StationOnly,     // normal: joins the saved venue network only, no hotspot
     AccessPointOnly, // "adhoc": broadcasts WifiPortal's own hotspot only, never attempts the venue network
-    Both             // joins the venue network AND keeps the hotspot broadcasting alongside it
+    Both             // legacy value; migrated to StationOnly at boot
 };
 
 // Persistent system preferences (NVS, "settings" namespace). Values

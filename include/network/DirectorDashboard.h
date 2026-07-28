@@ -1,8 +1,10 @@
 #pragma once
 
 #include <esp_http_server.h>
+#include "game/MachineCatalog.h"
 
-// Serves two director-facing HTML pages over DirectorControl's
+// Serves director-facing HTML pages and a read-only machine-catalog
+// API over DirectorControl's
 // existing esp_http_server instance (same pattern as WifiPortal --
 // see that class's header comment for why esp_http_server, and why
 // reusing one server instance rather than starting a second):
@@ -22,13 +24,16 @@
 //                        to prove the /status data contract works
 //                        (player names/colors/rounds/timers, machine
 //                        name, gameOver), not as the final look.
+//   GET /machines    -- read-only browser view of the machine catalog.
+//   GET /api/machines -- read-only JSON representation of the same
+//                        records for integrations.
 //
 // No interactive state machine like WifiPortal needs (no open()/
 // close(), no captive-portal DNS) -- both routes are just static pages
 // bound at begin() and always reachable once WiFi is up.
 class DirectorDashboard {
 public:
-    void begin(httpd_handle_t server);
+    void begin(httpd_handle_t server, const MachineCatalog& machineCatalog);
 
     // No-op, same reason as DirectorControl::update()/WifiPortal's
     // routes don't need per-tick work here -- esp_http_server runs its
@@ -39,10 +44,16 @@ public:
 private:
     esp_err_t handleSetupPage(httpd_req_t* req);
     esp_err_t handleLivePage(httpd_req_t* req);
+    esp_err_t handleMachinesPage(httpd_req_t* req);
+    esp_err_t handleMachinesApi(httpd_req_t* req);
 
     // esp_http_server handlers must be plain function pointers (no
     // captures) -- these trampolines recover `this` from the per-URI
     // user_ctx set at registration, same pattern as DirectorControl.
     static esp_err_t handleSetupPageTrampoline(httpd_req_t* req);
     static esp_err_t handleLivePageTrampoline(httpd_req_t* req);
+    static esp_err_t handleMachinesPageTrampoline(httpd_req_t* req);
+    static esp_err_t handleMachinesApiTrampoline(httpd_req_t* req);
+
+    const MachineCatalog* machineCatalog_ = nullptr;
 };

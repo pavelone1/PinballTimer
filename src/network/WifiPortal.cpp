@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <esp_system.h>
 
 namespace {
 
@@ -70,6 +71,7 @@ button{background:#2a8a4f;color:#fff;border:none;cursor:pointer;margin-top:14px}
 #status{margin-top:14px;font-weight:bold;min-height:1.2em}
 </style></head><body>
 <h1>PinballTimer WiFi Setup</h1>
+<p><a href="/game-live">Live game</a> &nbsp; <a href="/game-setup">Game setup</a> &nbsp; <a href="/machines">Machines</a></p>
 <label>Network</label>
 <select id="ssidSelect"><option>Scanning...</option></select>
 <label>Or type SSID manually (for hidden networks)</label>
@@ -111,8 +113,8 @@ function poll(){
     if (s.state === 'connecting') {
       document.getElementById('status').textContent = 'Connecting...';
       setTimeout(poll, 1000);
-    } else if (s.state === 'connected') {
-      document.getElementById('status').textContent = 'Connected! Device IP: ' + s.ip;
+    } else if (s.state === 'saved') {
+      document.getElementById('status').textContent = 'Saved. The setup hotspot will close while the device joins that network.';
     } else if (s.state === 'failed') {
       document.getElementById('status').textContent = 'Could not connect -- check the password and try again.';
     }
@@ -142,7 +144,7 @@ void WifiPortal::begin(httpd_handle_t server, SettingsStorage& settings, TftDisp
 
 void WifiPortal::applyStartupMode()
 {
-    if (settings_->wifiOperatingMode() == WifiOperatingMode::StationOnly) {
+    if (settings_->wifiOperatingMode() != WifiOperatingMode::AccessPointOnly) {
         return;
     }
 
@@ -153,6 +155,7 @@ void WifiPortal::applyStartupMode()
 void WifiPortal::open()
 {
     startAp();
+    interactiveOpen_ = true;
     state_ = State::Portal;
     stateEnteredMs_ = millis();
     renderTftStatus();
@@ -167,17 +170,37 @@ void WifiPortal::close()
         dnsServer_.stop();
         WiFi.softAPdisconnect(true);
     }
+    interactiveOpen_ = false;
     state_ = State::Idle;
 }
 
 bool WifiPortal::isOpen() const
 {
-    return state_ != State::Idle;
+    return interactiveOpen_;
+}
+
+void WifiPortal::startFallback()
+{
+    if (isApActive()) {
+        return;
+    }
+
+    persistentApActive_ = false;
+    interactiveOpen_ = false;
+    startAp();
+    state_ = State::Portal;
+    stateEnteredMs_ = millis();
+}
+
+bool WifiPortal::isApActive() const
+{
+    const wifi_mode_t mode = WiFi.getMode();
+    return mode == WIFI_MODE_AP;
 }
 
 void WifiPortal::revertToAdhoc()
 {
-    WiFi.disconnect(false); // drop STA only; startAp() (via open()) brings/keeps the AP up
+    WiFi.disconnect(true);
     persistentApActive_ = true;
     settings_->setWifiOperatingMode(WifiOperatingMode::AccessPointOnly);
     open(); // shows the hotspot's join info rather than switching silently
@@ -188,7 +211,9 @@ void WifiPortal::setPersistentHotspot(bool persistent)
     persistentApActive_ = persistent;
 
     if (persistent) {
-        settings_->setWifiOperatingMode(WifiOperatingMode::Both);
+        // A persistent hotspot is now exclusive. "Both" used
+        // WIFI_AP_STA and is intentionally no longer selected.
+        settings_->setWifiOperatingMode(WifiOperatingMode::AccessPointOnly);
         startAp();
         return;
     }
@@ -221,20 +246,6 @@ void WifiPortal::update()
     }
 
     switch (state_) {
-        case State::TestConnect:
-            if (WiFi.status() == WL_CONNECTED) {
-                settings_->setWifiCredentials(pendingSsid_, pendingPassword_);
-                state_ = State::Success;
-                stateEnteredMs_ = millis();
-                renderTftStatus();
-            } else if (millis() - stateEnteredMs_ >= TEST_CONNECT_TIMEOUT_MS) {
-                WiFi.disconnect();
-                state_ = State::Failed;
-                stateEnteredMs_ = millis();
-                renderTftStatus();
-            }
-            break;
-
         case State::Success:
             if (millis() - stateEnteredMs_ >= SUCCESS_GRACE_MS) {
                 close(); // App notices isOpen()==false and finalizes via NetworkManager::begin()
@@ -349,10 +360,12 @@ esp_err_t WifiPortal::handleConnect(httpd_req_t* req)
     httpd_resp_set_type(req, "application/json");
     httpd_resp_send(req, "{\"result\":\"connecting\"}", HTTPD_RESP_USE_STRLEN);
 
-    WiFi.mode(WIFI_AP_STA); // keep the portal AP alive while testing the candidate network
-    WiFi.begin(pendingSsid_, pendingPassword_);
-
-    state_ = State::TestConnect;
+    // Save first, then let App switch from AP to STA after the browser
+    // has received this response. Never enable WIFI_AP_STA.
+    settings_->setWifiCredentials(pendingSsid_, pendingPassword_);
+    settings_->setWifiOperatingMode(WifiOperatingMode::StationOnly);
+    persistentApActive_ = false;
+    state_ = State::Success;
     stateEnteredMs_ = millis();
     renderTftStatus();
     return ESP_OK;
@@ -364,15 +377,9 @@ esp_err_t WifiPortal::handleStatus(httpd_req_t* req)
 
     switch (state_) {
         case State::TestConnect:
-            snprintf(buf, sizeof(buf), "{\"state\":\"connecting\"}");
+        case State::Success:
+            snprintf(buf, sizeof(buf), "{\"state\":\"saved\"}");
             break;
-
-        case State::Success: {
-            IPAddress ip = WiFi.localIP();
-            snprintf(buf, sizeof(buf), "{\"state\":\"connected\",\"ip\":\"%u.%u.%u.%u\"}",
-                ip[0], ip[1], ip[2], ip[3]);
-            break;
-        }
 
         case State::Failed:
             snprintf(buf, sizeof(buf), "{\"state\":\"failed\"}");
@@ -439,14 +446,18 @@ esp_err_t WifiPortal::handleNotFoundTrampoline(httpd_req_t* req, httpd_err_code_
 
 void WifiPortal::startAp()
 {
-    char apSsid[48];
-    snprintf(apSsid, sizeof(apSsid), "%s Setup", settings_->deviceName());
+    uint8_t mac[6] = {};
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    char apSsid[24];
+    snprintf(apSsid, sizeof(apSsid), "PinballTimer%02X%02X", mac[4], mac[5]);
 
-    // Preserve an already-active STA connection (e.g. WifiOperatingMode::Both)
-    // rather than forcing AP-only.
-    const wifi_mode_t currentMode = WiFi.getMode();
-    const bool staActive = currentMode == WIFI_MODE_STA || currentMode == WIFI_MODE_APSTA;
-    WiFi.mode(staActive ? WIFI_AP_STA : WIFI_AP);
+    // Transition cleanly to an exclusive AP. Never use WIFI_AP_STA.
+    if (WiFi.getMode() != WIFI_MODE_AP) {
+        WiFi.disconnect(true);
+        WiFi.mode(WIFI_OFF);
+        delay(20);
+        WiFi.mode(WIFI_AP);
+    }
     WiFi.softAPConfig(kApLocalIp, kApGateway, kApSubnet);
     WiFi.softAP(apSsid, apPassword_);
     dnsServer_.start(53, "*", WiFi.softAPIP());
@@ -454,8 +465,10 @@ void WifiPortal::startAp()
 
 void WifiPortal::renderTftStatus()
 {
-    char apSsidLine[40];
-    snprintf(apSsidLine, sizeof(apSsidLine), "Join: %s Setup", settings_->deviceName());
+    uint8_t mac[6] = {};
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    char apSsidLine[32];
+    snprintf(apSsidLine, sizeof(apSsidLine), "Join: PinballTimer%02X%02X", mac[4], mac[5]);
     char apPasswordLine[24];
     snprintf(apPasswordLine, sizeof(apPasswordLine), "Pass: %s", apPassword_);
 
@@ -466,15 +479,9 @@ void WifiPortal::renderTftStatus()
             break;
         }
 
-        case State::TestConnect: {
-            const char* lines[] = {pendingSsid_};
-            tft_->showStatusScreen("CONNECTING...", lines, 1, ColorId::Black, ColorId::White, ColorId::White);
-            break;
-        }
-
         case State::Success: {
-            const char* lines[] = {pendingSsid_};
-            tft_->showStatusScreen("WIFI CONNECTED", lines, 1, ColorId::Black, ColorId::Green, ColorId::White);
+            const char* lines[] = {pendingSsid_, "Saved; joining shortly"};
+            tft_->showStatusScreen("WIFI SAVED", lines, 2, ColorId::Black, ColorId::Green, ColorId::White);
             break;
         }
 

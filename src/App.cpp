@@ -77,37 +77,26 @@ void App::begin()
             settings_.setWifiCredentials(WIFI_SSID, WIFI_PASSWORD);
         }
 
-        // Brings up the underlying network stack (lwIP's TCP/IP task,
-        // netif, the WiFi driver) unconditionally, regardless of
-        // WifiOperatingMode -- directorControl_.begin() below starts an
-        // HTTP server, which needs that stack already running to open its
-        // listening socket. network_.begin()/wifiPortal_.applyStartupMode()
-        // further down also call WiFi.mode() themselves (harmless,
-        // idempotent), but each is conditional on the operating mode --
-        // AccessPointOnly in particular skips network_.begin() outright
-        // (see below), which used to leave nothing to bring the stack up
-        // before directorControl_.begin() ran. Since that's saved to NVS,
-        // the resulting crash survived reboots. See CLAUDE.md's "Firmware
-        // status" for the full story on why skipping this crashes
-        // httpd_start() with lwIP's "assert failed:
-        // tcpip_send_msg_wait_sem ... (Invalid mbox)".
-        WiFi.mode(WIFI_AP_STA);
+        // Old firmware offered a simultaneous AP+STA mode. That is the
+        // exact radio mode implicated by the REV2 coredump, so migrate
+        // it once and keep the radio in one exclusive mode thereafter.
+        if (settings_.wifiOperatingMode() == WifiOperatingMode::Both) {
+            settings_.setWifiOperatingMode(WifiOperatingMode::StationOnly);
+        }
 
-        // AccessPointOnly means the operator explicitly chose adhoc-only
-        // (e.g. via BootMenu/DirectorMenu's "Use Hotspot Only" item) --
-        // honor that by not even attempting STA. StationOnly/Both both
-        // want the venue network; applyStartupMode() below additionally
-        // brings the hotspot up for Both (and for AccessPointOnly).
-        if (settings_.wifiOperatingMode() != WifiOperatingMode::AccessPointOnly) {
+        // Start a netif before opening the HTTP server. Creating sockets
+        // before lwIP exists causes the separate "Invalid mbox" abort.
+        if (settings_.wifiOperatingMode() == WifiOperatingMode::AccessPointOnly) {
+            WiFi.mode(WIFI_AP);
+        } else {
             network_.begin(settings_.wifiSsid(), settings_.wifiPassword()); // no-op if still no SSID (empty Secrets.h)
         }
 
         statusReporter_.begin(gameModeManager_, players_, displayAssignments_, timers_, network_, settings_, directorControl_, power_, gameStorage_);
         directorControl_.begin(gameModeManager_, context_, statusReporter_, power_);
-        ota_.begin(settings_.deviceName(), OTA_PASSWORD, tft_);
         wifiPortal_.begin(directorControl_.server(), settings_, tft_, WIFI_PORTAL_PASSWORD);
-        wifiPortal_.applyStartupMode(); // brings the hotspot up in the background if the saved WifiOperatingMode calls for it
-        directorDashboard_.begin(directorControl_.server()); // /game-setup + /game-live, same shared httpd instance
+        wifiPortal_.applyStartupMode();
+        directorDashboard_.begin(directorControl_.server(), machineDatabase_.catalog());
     }
 
     // BootMenu is the boot screen (see App::update()'s input routing)
@@ -214,28 +203,68 @@ void App::update()
     // WiFi/HTTP subsystem disabled -- see include/FeatureFlags.h and
     // App::begin(). None of these were begun, so nothing here to poll.
     if (kWifiFeatureEnabled) {
+        // A menu can change AccessPointOnly back to StationOnly while
+        // the AP is idle. NetworkManager was intentionally not begun
+        // during an AP-only boot, so start it here on that transition.
+        if (!wifiPortal_.isApActive() &&
+            !wifiSetupIsOpen &&
+            settings_.wifiOperatingMode() == WifiOperatingMode::StationOnly &&
+            WiFi.getMode() != WIFI_MODE_STA) {
+            network_.begin(settings_.wifiSsid(), settings_.wifiPassword());
+        }
+
         // Skipped while WifiPortal owns the radio -- its own raw WiFi.*
         // calls would otherwise race NetworkManager's independent
         // reconnect-retry timer for the same interface (see WifiPortal.h).
         // Also skipped entirely in AccessPointOnly mode -- letting
         // NetworkManager keep retrying STA in the background would fight
         // the operator's explicit "adhoc only" choice.
-        if (!wifiPortalIsOpen && settings_.wifiOperatingMode() != WifiOperatingMode::AccessPointOnly) {
+        if (!wifiPortal_.isApActive() && settings_.wifiOperatingMode() != WifiOperatingMode::AccessPointOnly) {
             network_.update();
 
             const bool isConnected = network_.isConnected();
             if (isConnected && !wasConnected_) {
                 Serial.print("[WiFi] Connected, IP: ");
                 Serial.println(network_.localIP());
+                // ArduinoOTA/mDNS allocates network resources of its
+                // own. Bring it up once, only after STA has an address.
+                if (!otaStarted_) {
+                    ota_.begin(settings_.deviceName(), OTA_PASSWORD, tft_);
+                    otaStarted_ = true;
+                }
             } else if (!isConnected && wasConnected_) {
                 Serial.println("[WiFi] Disconnected");
+            }
+
+            if (isConnected) {
+                wifiDisconnectedSinceMs_ = 0;
+            } else if (wifiDisconnectedSinceMs_ == 0) {
+                wifiDisconnectedSinceMs_ = millis();
             }
             wasConnected_ = isConnected;
         }
 
         directorControl_.update();
         directorDashboard_.update();
-        ota_.update();
+        if (otaStarted_ && network_.isConnected()) {
+            ota_.update();
+        }
+
+        // A blank/unconfigured unit advertises immediately. A unit
+        // that loses its saved network gets a grace period for normal
+        // reconnects, then becomes locally reachable again. The AP is
+        // background-only and does not take over the game screen.
+        const bool missingCredentials = settings_.wifiSsid()[0] == '\0';
+        const bool connectionTimedOut =
+            wifiDisconnectedSinceMs_ != 0 &&
+            millis() - wifiDisconnectedSinceMs_ >= WIFI_FALLBACK_AP_DELAY_MS;
+        if (!wifiPortal_.isApActive() &&
+            !wifiSetupIsOpen &&
+            settings_.wifiOperatingMode() == WifiOperatingMode::StationOnly &&
+            (missingCredentials || connectionTimedOut)) {
+            Serial.println("[WiFi] Starting fallback setup hotspot");
+            wifiPortal_.startFallback();
+        }
     }
 
     power_.update();

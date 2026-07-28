@@ -543,7 +543,8 @@ on it, which isn't a quick change under this project's plain
 `framework = arduino` (precompiled libraries, no user-editable
 sdkconfig). **Decision**: rather than block game-mode work on this,
 the whole WiFi/HTTP subsystem is disabled behind one flag,
-`kWifiFeatureEnabled` in `include/FeatureFlags.h` (currently `false`).
+`kWifiFeatureEnabled` in `include/FeatureFlags.h` (set to `false` at
+the time of this investigation).
 `App::begin()`/`App::update()` skip `WiFi.mode()`/`network_`/
 `directorControl_`/`ota_`/`wifiPortal_`/`directorDashboard_` entirely
 when it's off; `BootMenu`'s "WiFi Setup" item and `DirectorMenu`'s two
@@ -551,6 +552,38 @@ WiFi rows stay visible (so the menu shape doesn't silently change) but
 are labeled "(disabled)" and are inert -- selecting them does nothing
 rather than handing off to a WiFi flow that was never brought up.
 Flip the flag back to `true` once the real fix lands.
+
+**Replacement WiFi lifecycle (July 2026):** WiFi is enabled again,
+but the firmware no longer enters `WIFI_AP_STA`, the mode implicated
+by the REV2 coredump. The radio now has one owner and one role at a
+time: station mode for venue WiFi, or AP mode for the setup/director
+hotspot. A web-portal submission saves credentials, gives the browser
+a four-second acknowledgement window, then closes the AP before
+station connection starts. The legacy persisted `Both` value migrates
+to `StationOnly`. Reconnect attempts back off from 5 to 60 seconds,
+SDK auto-reconnect and flash credential persistence are disabled, and
+OTA/mDNS starts only after STA receives an address. HTTP is still
+started only after an AP or STA netif exists, retaining the earlier
+`Invalid mbox` fix. This deliberately trades simultaneous hotspot +
+venue-network service for radio stability; either interface still
+provides the same director API/dashboard when selected.
+
+The normal product flow is now automatic. With no saved credentials,
+the device immediately broadcasts `PinballTimerXXXX`, where `XXXX`
+is the final four uppercase hexadecimal digits of its WiFi station
+MAC address. With saved credentials it tries station mode first. If
+it remains disconnected for 30 seconds, it switches to that same
+fallback AP without taking TFT/input focus away from a running game.
+The AP and LAN use the same `esp_http_server` instance and routes
+(`/`, `/status`, `/command`, `/game-setup`, `/game-live`, and the
+WiFi setup endpoints). Submitting new credentials acknowledges the
+browser request, closes the AP, and returns to exclusive station mode.
+The shared interface also exposes a read-only machine database at
+`/machines` and a streamed JSON connector at `/api/machines`. The API
+returns each record's stable ID, name, type, ball count, configured
+play-time fields, and resolved play time; it has no mutation routes.
+See `CODEX.md` under "WiFi Stability, Automatic Provisioning, and
+Database Read API" for the implementation log and verification record.
 
 ## Firmware architecture
 Built module-by-module following the layered structure in the

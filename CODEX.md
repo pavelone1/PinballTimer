@@ -598,3 +598,65 @@ On 2026-07-27, the user approved:
 - Verification:
   - `pio test -e native`: 49/49 tests passed.
   - `pio run -e app-rev2`: passed (811,905 bytes flash; 54,636 bytes RAM).
+
+## Approved Gauntlet Pause Correction
+
+On 2026-07-27, the user approved correcting Gauntlet's White Button
+pause/resume behavior to match Round Robin:
+
+- Starting a machine on White Button press must suppress that same physical
+  press's release so the machine is not immediately paused.
+- A later White Button tap pauses or resumes the active turn.
+- Pausing stops the active clock, turns off the active player's light, flashes
+  the White Button, and displays the paused status.
+- Resuming restores the appropriate active-player light and clock state.
+- Add regression coverage and verify native tests and the REV2 build.
+
+## WiFi Stability, Automatic Provisioning, and Database Read API
+
+On 2026-07-28, Codex replaced the disabled/unstable WiFi lifecycle while
+preserving the existing director interface, game setup, live status, captive
+portal, and OTA capabilities:
+
+- Re-enabled the WiFi feature behind `kWifiFeatureEnabled`.
+- Removed all runtime use of `WIFI_AP_STA`, which was implicated by the REV2
+  WiFi-task heap-corruption coredump. The radio now operates exclusively as
+  either a station or an access point.
+- Migrates the legacy persisted `Both` operating mode to `StationOnly`.
+- Ensures a station or AP network interface exists before starting the shared
+  HTTP server, preserving the earlier lwIP `Invalid mbox` boot-crash fix.
+- Disabled SDK auto-reconnect and SDK credential persistence. Application
+  reconnect attempts now back off from 5 seconds to a maximum of 60 seconds.
+- Defers ArduinoOTA/mDNS initialization until station mode has obtained an IP
+  address and services OTA only while the station remains connected.
+- With no saved credentials, automatically starts a background fallback AP.
+  With saved credentials, station mode is attempted first; after 30 seconds
+  disconnected, the same fallback AP starts automatically.
+- The fallback AP does not take TFT/input ownership or pause a running game.
+- Each device advertises `PinballTimerXXXX`, where `XXXX` is the final four
+  uppercase hexadecimal digits of its WiFi station MAC address.
+- The web provisioning flow saves submitted credentials, acknowledges the
+  browser for four seconds, stops the AP, and then attempts station mode. It
+  never tests credentials using simultaneous AP+STA operation.
+- The AP uses the fixed address `10.10.10.1`. AP and LAN operation share one
+  `esp_http_server` instance and the same application routes.
+- Added navigation among WiFi setup, game setup, live game status, and the
+  machine database.
+- Added read-only machine database access:
+  - `GET /machines` renders a browser table.
+  - `GET /api/machines` streams JSON without allocating a catalog-sized
+    response buffer.
+  - Records include stable ID, name, type, ball count, configured play-time
+    fields, and resolved play time.
+  - No database mutation route was added.
+- Updated `CLAUDE.md` with the replacement lifecycle and endpoint summary.
+- Added a cross-reference from that `CLAUDE.md` summary back to this detailed
+  implementation and verification log.
+- Preserved unrelated pre-existing working-tree changes.
+- Verification:
+  - `pio test -e native`: 50/50 tests passed.
+  - `pio run -e app-rev2`: passed after the final database connector changes
+    (904,953 bytes flash; 57,988 bytes RAM).
+  - `git diff --check`: passed.
+- The firmware was built but not flashed; sustained on-device WiFi testing is
+  still required before the reset issue can be considered conclusively closed.

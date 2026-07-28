@@ -4,25 +4,6 @@
 #include <WiFi.h>
 #include <cstring>
 
-namespace {
-
-bool apCurrentlyActive()
-{
-    const wifi_mode_t mode = WiFi.getMode();
-    return mode == WIFI_MODE_AP || mode == WIFI_MODE_APSTA;
-}
-
-// WiFi.disconnect(true) stops the whole WiFi driver, taking any
-// concurrently-running WifiPortal access point down with it --
-// acceptable when there's no AP to preserve, wrong when there is (see
-// WifiPortal.h's persistent-hotspot / "Both" operating mode).
-void disconnectStaPreservingAp()
-{
-    WiFi.disconnect(!apCurrentlyActive());
-}
-
-} // namespace
-
 void NetworkManager::begin(const char* ssid, const char* password)
 {
     strncpy(ssid_, ssid, SSID_MAX_LENGTH - 1);
@@ -33,23 +14,19 @@ void NetworkManager::begin(const char* ssid, const char* password)
 
     hasCredentials_ = ssid_[0] != '\0';
     standby_ = false;
+    reconnectIntervalMs_ = INITIAL_RECONNECT_INTERVAL_MS;
 
-    // Always bring the network stack (lwIP's TCP/IP task, netif, the
-    // WiFi driver) up via WiFi.mode() -- even with no saved SSID yet
-    // and nothing to actually connect to. DirectorControl/WifiPortal
-    // start an HTTP server shortly after this returns, and opening a
-    // listening socket requires that stack already running; on a
-    // fresh device (no saved credentials) this WiFi.mode() call is
-    // the only thing that brings it up before they call begin(). See
-    // CLAUDE.md's "Firmware status" for the full story -- without
-    // this, httpd_start() hits lwIP's "assert failed:
-    // tcpip_send_msg_wait_sem ... (Invalid mbox)" and aborts, which
-    // looked for a long time like an unrelated TFT/SPI crash because
-    // of where execution happened to be when the abort fired.
-    //
-    // Preserve an already-active WifiPortal access point rather than
-    // forcing STA-only.
-    WiFi.mode(apCurrentlyActive() ? WIFI_AP_STA : WIFI_STA);
+    // Own the radio exclusively. In particular, never preserve an AP
+    // by selecting WIFI_AP_STA: that mode is the trigger implicated by
+    // the REV2 WiFi-task heap-corruption coredump.
+    if (WiFi.getMode() != WIFI_MODE_STA) {
+        WiFi.disconnect(true);
+        WiFi.mode(WIFI_OFF);
+        delay(20);
+        WiFi.mode(WIFI_STA);
+    }
+    WiFi.persistent(false);
+    WiFi.setAutoReconnect(false);
 
     if (!hasCredentials_) {
         state_ = NetworkConnectionState::Disconnected;
@@ -69,18 +46,23 @@ void NetworkManager::update()
 
     if (WiFi.status() == WL_CONNECTED) {
         state_ = NetworkConnectionState::Connected;
+        reconnectIntervalMs_ = INITIAL_RECONNECT_INTERVAL_MS;
         return;
     }
 
     const unsigned long now = millis();
 
-    if (now - lastConnectAttemptMs_ >= RECONNECT_INTERVAL_MS) {
+    if (now - lastConnectAttemptMs_ >= reconnectIntervalMs_) {
         state_ = state_ == NetworkConnectionState::Connected
             ? NetworkConnectionState::Reconnecting
             : NetworkConnectionState::Connecting;
 
         WiFi.begin(ssid_, password_);
         lastConnectAttemptMs_ = now;
+        reconnectIntervalMs_ =
+            reconnectIntervalMs_ >= MAX_RECONNECT_INTERVAL_MS / 2
+                ? MAX_RECONNECT_INTERVAL_MS
+                : reconnectIntervalMs_ * 2;
     } else if (state_ == NetworkConnectionState::Connected) {
         state_ = NetworkConnectionState::Reconnecting;
     }
@@ -104,7 +86,7 @@ IPAddress NetworkManager::localIP() const
 void NetworkManager::enterStandby()
 {
     standby_ = true;
-    disconnectStaPreservingAp();
+    WiFi.disconnect(false);
     state_ = NetworkConnectionState::Standby;
 }
 
@@ -120,11 +102,12 @@ void NetworkManager::exitStandby()
     WiFi.begin(ssid_, password_);
     state_ = NetworkConnectionState::Connecting;
     lastConnectAttemptMs_ = millis();
+    reconnectIntervalMs_ = INITIAL_RECONNECT_INTERVAL_MS;
 }
 
 void NetworkManager::disconnect()
 {
-    disconnectStaPreservingAp();
+    WiFi.disconnect(false);
     state_ = NetworkConnectionState::Disconnected;
 }
 
@@ -134,8 +117,9 @@ void NetworkManager::reconnect()
         return;
     }
 
-    disconnectStaPreservingAp();
+    WiFi.disconnect(false);
     WiFi.begin(ssid_, password_);
     state_ = NetworkConnectionState::Connecting;
     lastConnectAttemptMs_ = millis();
+    reconnectIntervalMs_ = INITIAL_RECONNECT_INTERVAL_MS;
 }
