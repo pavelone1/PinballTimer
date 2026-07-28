@@ -6,11 +6,11 @@
 
 void NetworkManager::begin(const char* ssid, const char* password)
 {
-    strncpy(ssid_, ssid, SSID_MAX_LENGTH - 1);
-    ssid_[SSID_MAX_LENGTH - 1] = '\0';
+    strncpy(ssid_, ssid, SSID_MAX_LENGTH);
+    ssid_[SSID_MAX_LENGTH] = '\0';
 
-    strncpy(password_, password, PASSWORD_MAX_LENGTH - 1);
-    password_[PASSWORD_MAX_LENGTH - 1] = '\0';
+    strncpy(password_, password, PASSWORD_MAX_LENGTH);
+    password_[PASSWORD_MAX_LENGTH] = '\0';
 
     hasCredentials_ = ssid_[0] != '\0';
     standby_ = false;
@@ -27,6 +27,9 @@ void NetworkManager::begin(const char* ssid, const char* password)
     }
     WiFi.persistent(false);
     WiFi.setAutoReconnect(false);
+    WiFi.disconnect(false);
+    delay(20);
+    WiFi.setSleep(!keepAlive_);
 
     if (!hasCredentials_) {
         state_ = NetworkConnectionState::Disconnected;
@@ -122,4 +125,12 @@ void NetworkManager::reconnect()
     state_ = NetworkConnectionState::Connecting;
     lastConnectAttemptMs_ = millis();
     reconnectIntervalMs_ = INITIAL_RECONNECT_INTERVAL_MS;
+}
+
+void NetworkManager::setKeepAlive(bool enabled)
+{
+    // enabled=true disables modem sleep, keeping the HTTP interface
+    // responsive while the application's displays are in standby.
+    keepAlive_ = enabled;
+    WiFi.setSleep(!enabled);
 }

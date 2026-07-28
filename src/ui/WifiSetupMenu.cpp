@@ -15,6 +15,10 @@ void WifiSetupMenu::open(NetworkManager& network, SettingsStorage& settings, Tft
     networkCount_ = 0;
     selectedNetworkIndex_ = 0;
     pendingSsid_[0] = '\0';
+    strncpy(previousSsid_, settings.wifiSsid(), SSID_MAX_LENGTH);
+    previousSsid_[SSID_MAX_LENGTH] = '\0';
+    strncpy(previousPassword_, settings.wifiPassword(), sizeof(previousPassword_) - 1);
+    previousPassword_[sizeof(previousPassword_) - 1] = '\0';
     startScan();
 }
 
@@ -41,6 +45,7 @@ void WifiSetupMenu::update()
             break;
 
         case State::Connecting:
+            network_->update();
             pollConnecting();
             break;
 
@@ -69,9 +74,20 @@ void WifiSetupMenu::handleEncoderEvent(const EncoderEvent& event)
         return;
     }
 
-    if (event.type == EncoderEventType::SwLongPress &&
-        state_ != State::EnterSsidManual && state_ != State::EnterPassword) {
-        close(); // cancel from anywhere except text entry, which handles its own long-press via TextEntry
+    if (event.type == EncoderEventType::SwLongPress) {
+        if (state_ == State::SelectNetwork || state_ == State::Scanning) {
+            close();
+        } else {
+            if (state_ == State::Connecting || state_ == State::Result) {
+                network_->disconnect();
+                settings_->setWifiCredentials(previousSsid_, previousPassword_);
+                network_->begin(previousSsid_, previousPassword_);
+                network_->setKeepAlive(settings_->wifiKeepAlive());
+            }
+            state_ = State::SelectNetwork;
+            selectedNetworkIndex_ = 0;
+            render();
+        }
         return;
     }
 
@@ -166,7 +182,10 @@ void WifiSetupMenu::handleTextEntryEncoder(const EncoderEvent& event)
             break;
 
         case TextEntry::Result::Cancel:
-            close();
+            textEntry_.reset();
+            state_ = State::SelectNetwork;
+            selectedNetworkIndex_ = 0;
+            render();
             break;
 
         case TextEntry::Result::Done:
@@ -187,6 +206,7 @@ void WifiSetupMenu::beginConnect()
 {
     settings_->setWifiCredentials(pendingSsid_, textEntry_.text());
     network_->begin(pendingSsid_, textEntry_.text()); // re-inits with the new credentials and reconnects
+    network_->setKeepAlive(settings_->wifiKeepAlive());
     state_ = State::Connecting;
     stateEnteredMs_ = millis();
     render();
@@ -201,6 +221,10 @@ void WifiSetupMenu::pollConnecting()
         render();
     } else if (millis() - stateEnteredMs_ >= CONNECT_TIMEOUT_MS) {
         connectSucceeded_ = false;
+        failureStatus_ = static_cast<int>(WiFi.status());
+        settings_->setWifiCredentials(previousSsid_, previousPassword_);
+        network_->begin(previousSsid_, previousPassword_);
+        network_->setKeepAlive(settings_->wifiKeepAlive());
         state_ = State::Result;
         stateEnteredMs_ = millis();
         render();
@@ -292,10 +316,14 @@ void WifiSetupMenu::renderResult()
         char ipLine[32];
         IPAddress ip = network_->localIP();
         snprintf(ipLine, sizeof(ipLine), "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
-        const char* lines[] = {"Connected!", ipLine};
-        tft_->showStatusScreen("WIFI SETUP", lines, 2, ColorId::Black, ColorId::Green, ColorId::White);
+        char ssidLine[40];
+        snprintf(ssidLine, sizeof(ssidLine), "Connected to %s", pendingSsid_);
+        const char* lines[] = {ssidLine, ipLine};
+        tft_->showStatusScreen("WIFI CONNECTED", lines, 2, ColorId::Black, ColorId::Green, ColorId::White);
     } else {
-        const char* lines[] = {"Could not connect", "Check password & retry"};
-        tft_->showStatusScreen("WIFI SETUP", lines, 2, ColorId::Black, ColorId::Red, ColorId::White);
+        char statusLine[24];
+        snprintf(statusLine, sizeof(statusLine), "WiFi status: %d", failureStatus_);
+        const char* lines[] = {"Could not connect", "Check password & retry", statusLine};
+        tft_->showStatusScreen("WIFI SETUP", lines, 3, ColorId::Black, ColorId::Red, ColorId::White);
     }
 }

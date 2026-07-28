@@ -31,8 +31,12 @@ public:
     bool soundEnabled() const;
 
     void setWifiCredentials(const char* ssid, const char* password);
+    void clearWifiCredentials();
     const char* wifiSsid() const;
     const char* wifiPassword() const;
+
+    void setWifiKeepAlive(bool enabled);
+    bool wifiKeepAlive() const;
 
     void setWifiOperatingMode(WifiOperatingMode mode);
     WifiOperatingMode wifiOperatingMode() const;
@@ -60,8 +64,9 @@ private:
     uint8_t lastSelectedMode_ = 0;
     uint8_t brightness_ = 4;
     bool soundEnabled_ = true;
-    char wifiSsid_[SSID_MAX_LENGTH] = "";
-    char wifiPassword_[PASSWORD_MAX_LENGTH] = "";
+    char wifiSsid_[SSID_MAX_LENGTH + 1] = "";
+    char wifiPassword_[PASSWORD_MAX_LENGTH + 1] = "";
+    bool wifiKeepAlive_ = false;
     WifiOperatingMode wifiOperatingMode_ = WifiOperatingMode::StationOnly;
     bool directorControlEnabled_ = false;
     bool preferRemoteControl_ = false;

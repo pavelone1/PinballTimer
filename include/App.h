@@ -100,6 +100,8 @@ private:
     // transition so the assigned IP is logged once, not every tick.
     bool wasConnected_ = false;
     bool otaStarted_ = false;
+    bool wifiPowered_ = false;
+    bool networkServicesInitialized_ = false;
     unsigned long wifiDisconnectedSinceMs_ = 0;
 
     static constexpr unsigned long WIFI_FALLBACK_AP_DELAY_MS = 30000;
@@ -120,9 +122,13 @@ private:
     // edge-detect blocks above to decide whether finishing WiFi setup
     // should reopen BootMenu or resume an in-progress game.
     bool wifiHandoffFromBootMenu_ = false;
+    bool wifiHandoffFromDirectorMenu_ = false;
 
     void handleButtonEvent(const ButtonEvent& event);
     void handleEncoderEvent(const EncoderEvent& event);
     void syncSystemState();
     void updateDirectorMenuHold();
+    void enableWifi();
+    void disableWifi();
+    void initializeNetworkServices();
 };

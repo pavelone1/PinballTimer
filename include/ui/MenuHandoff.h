@@ -14,5 +14,9 @@ enum class MenuHandoff : uint8_t {
     OpenWifiSetup,  // hand off to WifiSetupMenu (rotary-encoder WiFi join flow)
     OpenWifiPortal, // hand off to WifiPortal (phone/web WiFi join flow)
     RevertToAdhoc,  // hand off to WifiPortal::revertToAdhoc() (BootMenu only)
+    ToggleWifiPower,
+    ForgetWifiNetwork,
+    ToggleWifiKeepAlive,
+    TogglePersistentHotspot,
     EndGame         // DirectorMenu only: reset the mode and return to BootMenu, NOT resume
 };

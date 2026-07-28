@@ -32,6 +32,7 @@ public:
 
     void disconnect();
     void reconnect();
+    void setKeepAlive(bool enabled);
 
 private:
     static constexpr uint8_t SSID_MAX_LENGTH = 32;
@@ -39,11 +40,12 @@ private:
     static constexpr unsigned long INITIAL_RECONNECT_INTERVAL_MS = 5000;
     static constexpr unsigned long MAX_RECONNECT_INTERVAL_MS = 60000;
 
-    char ssid_[SSID_MAX_LENGTH] = "";
-    char password_[PASSWORD_MAX_LENGTH] = "";
+    char ssid_[SSID_MAX_LENGTH + 1] = "";
+    char password_[PASSWORD_MAX_LENGTH + 1] = "";
     NetworkConnectionState state_ = NetworkConnectionState::Disconnected;
     unsigned long lastConnectAttemptMs_ = 0;
     unsigned long reconnectIntervalMs_ = INITIAL_RECONNECT_INTERVAL_MS;
     bool standby_ = false;
     bool hasCredentials_ = false;
+    bool keepAlive_ = false;
 };

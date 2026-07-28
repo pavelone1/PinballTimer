@@ -568,12 +568,18 @@ started only after an AP or STA netif exists, retaining the earlier
 venue-network service for radio stability; either interface still
 provides the same director API/dashboard when selected.
 
-The normal product flow is now automatic. With no saved credentials,
-the device immediately broadcasts `PinballTimerXXXX`, where `XXXX`
-is the final four uppercase hexadecimal digits of its WiFi station
-MAC address. With saved credentials it tries station mode first. If
-it remains disconnected for 30 seconds, it switches to that same
-fallback AP without taking TFT/input focus away from a running game.
+The normal product flow is now explicitly power-gated. Every physical
+boot starts with `WiFi.mode(WIFI_OFF)` and does not initialize the
+network stack/HTTP services until the operator selects `Turn WiFi ON`
+in Boot Menu's WiFi submenu. Saved credentials survive, but radio
+power and `Keep WiFi Alive` do not. On explicit enable, a device with
+no credentials broadcasts `PinballTimerXXXX`, where `XXXX` is the
+final four uppercase hexadecimal digits of its WiFi station MAC
+address; one with credentials tries station mode. After 30 seconds
+disconnected it switches to the fallback AP without taking TFT/input
+focus away from a running game. `Turn WiFi OFF` stops DNS/AP/STA and
+sets `WIFI_OFF`, disabling the RF modem rather than merely enabling
+power save.
 The AP and LAN use the same `esp_http_server` instance and routes
 (`/`, `/status`, `/command`, `/game-setup`, `/game-live`, and the
 WiFi setup endpoints). Submitting new credentials acknowledges the
@@ -584,6 +590,12 @@ returns each record's stable ID, name, type, ball count, configured
 play-time fields, and resolved play time; it has no mutation routes.
 See `CODEX.md` under "WiFi Stability, Automatic Provisioning, and
 Database Read API" for the implementation log and verification record.
+The subsequent connection-status, one-level menu navigation, forget-network,
+web password visibility, keep-alive/modem-sleep, full-length SSID, and failed
+credential rollback work is recorded in `CODEX.md` under "WiFi Setup
+Usability and Connection Recovery".
+The later boot-off/runtime-only keep-alive policy is recorded under
+"WiFi Radio Power Policy".
 
 ## Firmware architecture
 Built module-by-module following the layered structure in the

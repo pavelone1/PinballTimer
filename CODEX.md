@@ -676,3 +676,71 @@ portal, and OTA capabilities:
   hard reset via RTS. The upload command reported success.
 - Upload verification confirms the image was written correctly. Runtime WiFi
   stability and fallback behavior still require observation after boot.
+
+## WiFi Setup Usability and Connection Recovery
+
+On 2026-07-28, Codex implemented the requested follow-up WiFi behavior:
+
+- The on-device WiFi submenu always reserves two lines for connection status:
+  the connected SSID and assigned station IP address, or explicit
+  not-connected placeholders.
+- A successful encoder-driven connection screen now says `Connected to
+  <SSID>` and displays the assigned IP address.
+- Long-press navigation now unwinds one level:
+  - Password/manual text entry returns to network selection.
+  - Network selection exits to the Boot Menu WiFi submenu.
+  - A Director Menu WiFi handoff returns to the Director Menu instead of
+    resuming directly into the game.
+- Added `Forget WiFi Network` to the Boot Menu WiFi submenu. It clears saved
+  SSID/password data, disconnects the station, and immediately starts the
+  device's fallback AP.
+- Added `Keep WiFi Alive: ON/OFF` control to disable ESP32 modem sleep while
+  the HTTP interface must remain responsive in application standby. Its
+  original persisted/default-ON behavior was superseded by the radio-power
+  policy below.
+- Added a `Show password` checkbox to the web WiFi form.
+- Corrected SSID storage to support the full IEEE 802.11 32-byte SSID rather
+  than truncating it to 31 bytes; password storage retains up to 64 bytes.
+- A new connection attempt explicitly disconnects the prior station session
+  before `WiFi.begin()`.
+- The encoder connection screen now drives `NetworkManager::update()` itself,
+  removing dependence on later `App::update()` ordering.
+- Failed candidate credentials are no longer left persisted. The previous
+  credentials are restored, the previous station connection is restarted, and
+  the failure screen includes the numeric SDK `wl_status_t` value to aid
+  diagnosis instead of remaining indefinitely on `CONNECTING`.
+- Verification after implementation:
+  - `pio test -e native`: 50/50 tests passed.
+  - `pio run -e app-rev2`: passed after the final parent-menu restoration
+    change (907,205 bytes flash; 58,092 bytes RAM).
+
+## WiFi Radio Power Policy
+
+On 2026-07-28, the user clarified that most timer use does not require WiFi
+and requested true radio-off behavior:
+
+- Every physical boot now starts with WiFi powered OFF. Saved network
+  credentials remain in NVS, but WiFi is not automatically started.
+- Boot Menu's WiFi submenu includes an explicit `Turn WiFi ON` /
+  `Turn WiFi OFF` action.
+- Network interfaces and the shared HTTP/portal/dashboard services are
+  initialized lazily on the first explicit enable, preserving the required
+  netif-before-HTTP startup order.
+- When enabled:
+  - Saved credentials select exclusive station mode.
+  - No credentials select the exclusive `PinballTimerXXXX` fallback AP.
+  - The existing 30-second loss-of-network fallback remains active only while
+    WiFi power is enabled.
+- Turning WiFi off stops captive-portal DNS, closes interactive/persistent AP
+  state, disconnects AP and station interfaces, and calls
+  `WiFi.mode(WIFI_OFF)` to disable the RF modem. This is distinct from modem
+  sleep or application display standby. The pinned Arduino-ESP32 core's
+  `WiFiGenericClass::mode(WIFI_MODE_NULL)` path calls `esp_wifi_stop()` and
+  then `esp_wifi_deinit()`, so this also deinitializes the WiFi driver.
+- `Keep WiFi Alive` is now runtime-only and defaults OFF on every physical
+  boot. Older persisted `wifiKeep` values are removed during settings load.
+  Toggling it controls modem sleep only for the current boot.
+- WiFi setup/join/adhoc actions do not implicitly power on a disabled radio;
+  the explicit power action must be selected first.
+- Verification:
+  - `pio run -e app-rev2`: passed (907,973 bytes flash; 58,100 bytes RAM).

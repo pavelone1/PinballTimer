@@ -9,8 +9,13 @@ void SettingsStorage::begin()
     lastSelectedMode_ = prefs_.getUChar("lastMode", lastSelectedMode_);
     brightness_ = prefs_.getUChar("brightness", brightness_);
     soundEnabled_ = prefs_.getBool("sound", soundEnabled_);
-    prefs_.getString("wifiSsid", wifiSsid_, SSID_MAX_LENGTH);
-    prefs_.getString("wifiPass", wifiPassword_, PASSWORD_MAX_LENGTH);
+    prefs_.getString("wifiSsid", wifiSsid_, sizeof(wifiSsid_));
+    prefs_.getString("wifiPass", wifiPassword_, sizeof(wifiPassword_));
+    // Runtime-only safety/power preference: every physical boot starts
+    // with modem sleep allowed. Deliberately ignore and remove values
+    // written by older firmware.
+    wifiKeepAlive_ = false;
+    prefs_.remove("wifiKeep");
     wifiOperatingMode_ = static_cast<WifiOperatingMode>(
         prefs_.getUChar("wifiApMode", static_cast<uint8_t>(wifiOperatingMode_))
     );
@@ -55,14 +60,19 @@ bool SettingsStorage::soundEnabled() const
 
 void SettingsStorage::setWifiCredentials(const char* ssid, const char* password)
 {
-    strncpy(wifiSsid_, ssid, SSID_MAX_LENGTH - 1);
-    wifiSsid_[SSID_MAX_LENGTH - 1] = '\0';
+    strncpy(wifiSsid_, ssid, SSID_MAX_LENGTH);
+    wifiSsid_[SSID_MAX_LENGTH] = '\0';
 
-    strncpy(wifiPassword_, password, PASSWORD_MAX_LENGTH - 1);
-    wifiPassword_[PASSWORD_MAX_LENGTH - 1] = '\0';
+    strncpy(wifiPassword_, password, PASSWORD_MAX_LENGTH);
+    wifiPassword_[PASSWORD_MAX_LENGTH] = '\0';
 
     prefs_.putString("wifiSsid", wifiSsid_);
     prefs_.putString("wifiPass", wifiPassword_);
+}
+
+void SettingsStorage::clearWifiCredentials()
+{
+    setWifiCredentials("", "");
 }
 
 const char* SettingsStorage::wifiSsid() const
@@ -73,6 +83,16 @@ const char* SettingsStorage::wifiSsid() const
 const char* SettingsStorage::wifiPassword() const
 {
     return wifiPassword_;
+}
+
+void SettingsStorage::setWifiKeepAlive(bool enabled)
+{
+    wifiKeepAlive_ = enabled;
+}
+
+bool SettingsStorage::wifiKeepAlive() const
+{
+    return wifiKeepAlive_;
 }
 
 void SettingsStorage::setWifiOperatingMode(WifiOperatingMode mode)

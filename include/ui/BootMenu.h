@@ -92,6 +92,7 @@ public:
     );
 
     void open();
+    void openWifiSubmenu();
     void close();
     bool isOpen() const;
 
@@ -128,9 +129,12 @@ private:
     };
 
     enum class WifiItem : uint8_t {
+        TogglePower,
         JoinEncoder,
         JoinWeb,
         Adhoc,
+        ForgetNetwork,
+        ToggleKeepAlive,
         ToggleHotspot
     };
 
@@ -143,7 +147,7 @@ private:
     static constexpr uint8_t MAX_TOP_ITEMS = 4;
     static constexpr uint8_t MODE_MENU_MAX_ITEMS = 5; // Start, Number of Players (conditional), Select Machine, Mode Config, Return
     static constexpr uint8_t PLAYER_COUNT = static_cast<uint8_t>(PlayerId::Count);
-    static constexpr uint8_t WIFI_ITEM_COUNT = 4;
+    static constexpr uint8_t WIFI_ITEM_COUNT = 7;
     static constexpr uint8_t MODE_CONFIG_ITEM_COUNT = 2;
     static constexpr long MODE_CONFIG_SECONDS_STEP = 15;
 

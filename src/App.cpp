@@ -60,11 +60,9 @@ void App::begin()
 
     power_.begin(context_);
 
-    // WiFi/HTTP subsystem is temporarily disabled -- see
-    // include/FeatureFlags.h. Everything below needs the WiFi radio
-    // up (network stack, director HTTP API, OTA, WiFi portal,
-    // dashboard), so it's all skipped together rather than partially
-    // bringing things up that would then have nothing to talk to.
+    // Credentials persist, but radio power never does: every physical
+    // boot starts with the RF modem fully disabled until the operator
+    // explicitly turns WiFi on from BootMenu.
     if (kWifiFeatureEnabled) {
         // First-boot-only bootstrap: Secrets.h (gitignored, see
         // Secrets.h.example) supplies the one fixed venue network this
@@ -83,20 +81,8 @@ void App::begin()
         if (settings_.wifiOperatingMode() == WifiOperatingMode::Both) {
             settings_.setWifiOperatingMode(WifiOperatingMode::StationOnly);
         }
-
-        // Start a netif before opening the HTTP server. Creating sockets
-        // before lwIP exists causes the separate "Invalid mbox" abort.
-        if (settings_.wifiOperatingMode() == WifiOperatingMode::AccessPointOnly) {
-            WiFi.mode(WIFI_AP);
-        } else {
-            network_.begin(settings_.wifiSsid(), settings_.wifiPassword()); // no-op if still no SSID (empty Secrets.h)
-        }
-
-        statusReporter_.begin(gameModeManager_, players_, displayAssignments_, timers_, network_, settings_, directorControl_, power_, gameStorage_);
-        directorControl_.begin(gameModeManager_, context_, statusReporter_, power_);
-        wifiPortal_.begin(directorControl_.server(), settings_, tft_, WIFI_PORTAL_PASSWORD);
-        wifiPortal_.applyStartupMode();
-        directorDashboard_.begin(directorControl_.server(), machineDatabase_.catalog());
+        WiFi.mode(WIFI_OFF);
+        wifiPowered_ = false;
     }
 
     // BootMenu is the boot screen (see App::update()'s input routing)
@@ -135,7 +121,10 @@ void App::update()
     if (!wifiSetupIsOpen && wifiSetupWasOpen_) {
         if (wifiHandoffFromBootMenu_) {
             wifiHandoffFromBootMenu_ = false;
-            bootMenu_.open();
+            bootMenu_.openWifiSubmenu();
+        } else if (wifiHandoffFromDirectorMenu_) {
+            wifiHandoffFromDirectorMenu_ = false;
+            directorMenu_.open(gameModeManager_, directorControl_, players_, tft_);
         } else {
             gameModeManager_.notifyResume();
         }
@@ -156,7 +145,10 @@ void App::update()
 
         if (wifiHandoffFromBootMenu_) {
             wifiHandoffFromBootMenu_ = false;
-            bootMenu_.open();
+            bootMenu_.openWifiSubmenu();
+        } else if (wifiHandoffFromDirectorMenu_) {
+            wifiHandoffFromDirectorMenu_ = false;
+            directorMenu_.open(gameModeManager_, directorControl_, players_, tft_);
         } else {
             gameModeManager_.notifyResume();
         }
@@ -202,7 +194,7 @@ void App::update()
 
     // WiFi/HTTP subsystem disabled -- see include/FeatureFlags.h and
     // App::begin(). None of these were begun, so nothing here to poll.
-    if (kWifiFeatureEnabled) {
+    if (kWifiFeatureEnabled && wifiPowered_) {
         // A menu can change AccessPointOnly back to StationOnly while
         // the AP is idle. NetworkManager was intentionally not begun
         // during an AP-only boot, so start it here on that transition.
@@ -292,6 +284,70 @@ void App::update()
     }
 
     syncSystemState();
+}
+
+void App::initializeNetworkServices()
+{
+    if (networkServicesInitialized_) {
+        return;
+    }
+
+    statusReporter_.begin(gameModeManager_, players_, displayAssignments_, timers_,
+        network_, settings_, directorControl_, power_, gameStorage_);
+    directorControl_.begin(gameModeManager_, context_, statusReporter_, power_);
+    wifiPortal_.begin(directorControl_.server(), settings_, tft_, WIFI_PORTAL_PASSWORD);
+    directorDashboard_.begin(directorControl_.server(), machineDatabase_.catalog());
+    networkServicesInitialized_ = true;
+}
+
+void App::enableWifi()
+{
+    if (!kWifiFeatureEnabled || wifiPowered_) {
+        return;
+    }
+
+    network_.setKeepAlive(settings_.wifiKeepAlive());
+    const bool useAp =
+        settings_.wifiOperatingMode() == WifiOperatingMode::AccessPointOnly ||
+        settings_.wifiSsid()[0] == '\0';
+
+    // A netif must exist before httpd_start() opens its listening
+    // socket. Start the selected exclusive radio role first.
+    if (useAp) {
+        WiFi.mode(WIFI_AP);
+    } else {
+        network_.begin(settings_.wifiSsid(), settings_.wifiPassword());
+    }
+    wifiPowered_ = true;
+    initializeNetworkServices();
+
+    if (useAp) {
+        if (settings_.wifiOperatingMode() == WifiOperatingMode::AccessPointOnly) {
+            wifiPortal_.applyStartupMode();
+        } else {
+            wifiPortal_.startFallback();
+        }
+    }
+}
+
+void App::disableWifi()
+{
+    if (!wifiPowered_) {
+        return;
+    }
+
+    network_.disconnect();
+    if (networkServicesInitialized_) {
+        wifiPortal_.shutdownRadio();
+    } else {
+        WiFi.disconnect(true);
+        WiFi.mode(WIFI_OFF);
+    }
+    WiFi.mode(WIFI_OFF);
+    wifiPowered_ = false;
+    wasConnected_ = false;
+    wifiDisconnectedSinceMs_ = 0;
+    Serial.println("[WiFi] Radio OFF");
 }
 
 SystemState App::state() const
@@ -390,10 +446,18 @@ void App::handleEncoderEvent(const EncoderEvent& event)
         const MenuHandoff outcome = directorMenu_.handleEncoderEvent(event);
 
         if (outcome == MenuHandoff::OpenWifiSetup) {
+            if (!wifiPowered_) {
+                return;
+            }
             directorMenu_.close(tft_); // UI cleanup only -- stays paused, hands off rather than resuming
+            wifiHandoffFromDirectorMenu_ = true;
             wifiSetupMenu_.open(network_, settings_, tft_);
         } else if (outcome == MenuHandoff::OpenWifiPortal) {
+            if (!wifiPowered_) {
+                return;
+            }
             directorMenu_.close(tft_); // UI cleanup only -- stays paused, hands off rather than resuming
+            wifiHandoffFromDirectorMenu_ = true;
             wifiPortal_.open();
         } else if (outcome == MenuHandoff::Close) {
             directorMenu_.close(tft_);
@@ -413,17 +477,53 @@ void App::handleEncoderEvent(const EncoderEvent& event)
         const MenuHandoff outcome = bootMenu_.handleEncoderEvent(event);
 
         if (outcome == MenuHandoff::OpenWifiSetup) {
+            if (!wifiPowered_) {
+                bootMenu_.openWifiSubmenu();
+                return;
+            }
             bootMenu_.close();
             wifiHandoffFromBootMenu_ = true;
             wifiSetupMenu_.open(network_, settings_, tft_);
         } else if (outcome == MenuHandoff::OpenWifiPortal) {
+            if (!wifiPowered_) {
+                bootMenu_.openWifiSubmenu();
+                return;
+            }
             bootMenu_.close();
             wifiHandoffFromBootMenu_ = true;
             wifiPortal_.open();
         } else if (outcome == MenuHandoff::RevertToAdhoc) {
+            if (!wifiPowered_) {
+                bootMenu_.openWifiSubmenu();
+                return;
+            }
             bootMenu_.close();
             wifiHandoffFromBootMenu_ = true;
             wifiPortal_.revertToAdhoc();
+        } else if (outcome == MenuHandoff::ToggleWifiPower) {
+            if (wifiPowered_) {
+                disableWifi();
+            } else {
+                enableWifi();
+            }
+            bootMenu_.openWifiSubmenu();
+        } else if (outcome == MenuHandoff::ForgetWifiNetwork) {
+            if (wifiPowered_ && networkServicesInitialized_) {
+                wifiPortal_.forgetNetwork();
+            } else {
+                settings_.clearWifiCredentials();
+            }
+            bootMenu_.openWifiSubmenu();
+        } else if (outcome == MenuHandoff::ToggleWifiKeepAlive) {
+            const bool enabled = !settings_.wifiKeepAlive();
+            settings_.setWifiKeepAlive(enabled);
+            network_.setKeepAlive(enabled);
+            bootMenu_.openWifiSubmenu();
+        } else if (outcome == MenuHandoff::TogglePersistentHotspot) {
+            if (wifiPowered_ && networkServicesInitialized_) {
+                wifiPortal_.setPersistentHotspot(!wifiPortal_.persistentHotspot());
+            }
+            bootMenu_.openWifiSubmenu();
         } else if (outcome == MenuHandoff::Close) {
             // Start Game / Resume Game / Select Game Mode already did
             // their work synchronously inside BootMenu -- the active

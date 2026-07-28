@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <WiFi.h>
 #include "FeatureFlags.h"
 #include "ui/ScrollList.h"
 #include "modes/round_robin/Mode1RoundRobin.h"
@@ -31,6 +32,14 @@ void BootMenu::open()
     state_ = State::TopMenu;
     topSelectedIndex_ = 0;
     refreshTopItems();
+    render();
+}
+
+void BootMenu::openWifiSubmenu()
+{
+    open_ = true;
+    state_ = State::WifiSubmenu;
+    wifiSelectedIndex_ = 0;
     render();
 }
 
@@ -451,6 +460,10 @@ void BootMenu::handleWifiSubmenuEncoder(const EncoderEvent& event, MenuHandoff& 
         render();
     } else if (event.type == EncoderEventType::SwShortPress) {
         switch (static_cast<WifiItem>(wifiSelectedIndex_)) {
+            case WifiItem::TogglePower:
+                outcome = MenuHandoff::ToggleWifiPower;
+                break;
+
             case WifiItem::JoinEncoder:
                 outcome = MenuHandoff::OpenWifiSetup;
                 break;
@@ -463,9 +476,16 @@ void BootMenu::handleWifiSubmenuEncoder(const EncoderEvent& event, MenuHandoff& 
                 outcome = MenuHandoff::RevertToAdhoc;
                 break;
 
+            case WifiItem::ForgetNetwork:
+                outcome = MenuHandoff::ForgetWifiNetwork;
+                break;
+
+            case WifiItem::ToggleKeepAlive:
+                outcome = MenuHandoff::ToggleWifiKeepAlive;
+                break;
+
             case WifiItem::ToggleHotspot:
-                wifiPortal_->setPersistentHotspot(!wifiPortal_->persistentHotspot());
-                render();
+                outcome = MenuHandoff::TogglePersistentHotspot;
                 break;
         }
     }
@@ -792,23 +812,47 @@ void BootMenu::renderWifiSubmenu()
         return;
     }
 
-    static constexpr uint8_t LINE_LENGTH = 32;
-    char lineBuf[WIFI_ITEM_COUNT][LINE_LENGTH];
-    const char* linePtrs[WIFI_ITEM_COUNT];
+    static constexpr uint8_t LINE_LENGTH = 40;
+    static constexpr uint8_t SCREEN_LINE_COUNT = 5;
+    static constexpr uint8_t STATUS_LINE_COUNT = 2;
+    static constexpr uint8_t VISIBLE_ACTION_COUNT =
+        SCREEN_LINE_COUNT - STATUS_LINE_COUNT;
+    char lineBuf[SCREEN_LINE_COUNT][LINE_LENGTH];
+    const char* linePtrs[SCREEN_LINE_COUNT];
+
+    if (WiFi.status() == WL_CONNECTED) {
+        snprintf(lineBuf[0], LINE_LENGTH, "SSID: %s", WiFi.SSID().c_str());
+        const IPAddress ip = WiFi.localIP();
+        snprintf(lineBuf[1], LINE_LENGTH, "IP: %u.%u.%u.%u",
+            ip[0], ip[1], ip[2], ip[3]);
+    } else {
+        snprintf(lineBuf[0], LINE_LENGTH, "SSID: Not connected");
+        snprintf(lineBuf[1], LINE_LENGTH, "IP: --");
+    }
+    linePtrs[0] = lineBuf[0];
+    linePtrs[1] = lineBuf[1];
 
     const char* labels[WIFI_ITEM_COUNT] = {
+        WiFi.getMode() == WIFI_MODE_NULL ? "Turn WiFi ON" : "Turn WiFi OFF",
         "Join Network (Encoder)",
         "Join Network (Web)",
         "Use Hotspot Only (Adhoc)",
+        "Forget WiFi Network",
+        settings_->wifiKeepAlive() ? "Keep WiFi Alive: ON" : "Keep WiFi Alive: OFF",
         wifiPortal_->persistentHotspot() ? "Keep Hotspot: ON" : "Keep Hotspot: OFF"
     };
 
-    for (uint8_t i = 0; i < WIFI_ITEM_COUNT; ++i) {
-        snprintf(lineBuf[i], LINE_LENGTH, "%s%s", i == wifiSelectedIndex_ ? "> " : "  ", labels[i]);
-        linePtrs[i] = lineBuf[i];
+    const uint8_t windowStart = ScrollList::scrollWindowStart(
+        wifiSelectedIndex_, WIFI_ITEM_COUNT, VISIBLE_ACTION_COUNT);
+    for (uint8_t i = 0; i < VISIBLE_ACTION_COUNT; ++i) {
+        const uint8_t itemIndex = windowStart + i;
+        snprintf(lineBuf[STATUS_LINE_COUNT + i], LINE_LENGTH, "%s%s",
+            itemIndex == wifiSelectedIndex_ ? "> " : "  ", labels[itemIndex]);
+        linePtrs[STATUS_LINE_COUNT + i] = lineBuf[STATUS_LINE_COUNT + i];
     }
 
-    tft_->showStatusScreen("WIFI SETUP", linePtrs, WIFI_ITEM_COUNT, ColorId::Black, ColorId::White, ColorId::Cyan);
+    tft_->showStatusScreen("WIFI SETUP", linePtrs, SCREEN_LINE_COUNT,
+        ColorId::Black, ColorId::White, ColorId::Cyan);
 }
 
 void BootMenu::renderModeConfigList()

@@ -72,9 +72,12 @@ private:
     TextEntry textEntry_;
 
     char pendingSsid_[SSID_MAX_LENGTH + 1] = {};
+    char previousSsid_[SSID_MAX_LENGTH + 1] = {};
+    char previousPassword_[65] = {};
 
     unsigned long stateEnteredMs_ = 0;
     bool connectSucceeded_ = false;
+    int failureStatus_ = 0;
 
     void startScan();
     void pollScan();

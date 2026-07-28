@@ -58,6 +58,7 @@ public:
     // or the saved network has remained unavailable.
     void startFallback();
     bool isApActive() const;
+    void shutdownRadio();
 
     // Forces AccessPointOnly: drops the STA connection, brings the AP
     // up (persistently) if it wasn't already, persists the choice,
@@ -70,6 +71,9 @@ public:
     // connection), applied immediately, not just on next boot.
     void setPersistentHotspot(bool persistent);
     bool persistentHotspot() const;
+    void forgetNetwork();
+    void setKeepAlive(bool enabled);
+    bool keepAlive() const;
 
     // Call every tick -- drives the DNS server (needed whenever the
     // AP is up at all, interactively or persistently) and the

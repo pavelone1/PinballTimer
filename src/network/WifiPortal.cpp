@@ -78,6 +78,7 @@ button{background:#2a8a4f;color:#fff;border:none;cursor:pointer;margin-top:14px}
 <input id="ssidManual" placeholder="Network name">
 <label>Password</label>
 <input id="password" type="password" placeholder="Leave blank if open network">
+<label><input id="showPassword" type="checkbox" style="width:auto" onchange="document.getElementById('password').type=this.checked?'text':'password'"> Show password</label>
 <button onclick="connect()">Connect</button>
 <div id="status"></div>
 <script>
@@ -198,6 +199,17 @@ bool WifiPortal::isApActive() const
     return mode == WIFI_MODE_AP;
 }
 
+void WifiPortal::shutdownRadio()
+{
+    dnsServer_.stop();
+    interactiveOpen_ = false;
+    persistentApActive_ = false;
+    state_ = State::Idle;
+    WiFi.softAPdisconnect(true);
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+}
+
 void WifiPortal::revertToAdhoc()
 {
     WiFi.disconnect(true);
@@ -233,6 +245,25 @@ void WifiPortal::setPersistentHotspot(bool persistent)
 bool WifiPortal::persistentHotspot() const
 {
     return persistentApActive_;
+}
+
+void WifiPortal::forgetNetwork()
+{
+    settings_->clearWifiCredentials();
+    settings_->setWifiOperatingMode(WifiOperatingMode::StationOnly);
+    WiFi.disconnect(true);
+    startFallback();
+}
+
+void WifiPortal::setKeepAlive(bool enabled)
+{
+    settings_->setWifiKeepAlive(enabled);
+    WiFi.setSleep(!enabled);
+}
+
+bool WifiPortal::keepAlive() const
+{
+    return settings_->wifiKeepAlive();
 }
 
 void WifiPortal::update()
@@ -460,6 +491,7 @@ void WifiPortal::startAp()
     }
     WiFi.softAPConfig(kApLocalIp, kApGateway, kApSubnet);
     WiFi.softAP(apSsid, apPassword_);
+    WiFi.setSleep(!settings_->wifiKeepAlive());
     dnsServer_.start(53, "*", WiFi.softAPIP());
 }
 
