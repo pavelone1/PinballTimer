@@ -946,3 +946,11 @@ On 2026-07-28, the user established a standing workflow rule:
   flash.
 - Codex may proceed only after the user explicitly approves that specific
   flash.
+
+### 2026-07-28 Combined Feature Commit and Push
+
+- Committed the PowerShell WiFi connector, web database CRUD/CSV backup,
+  Gauntlet Player's Choice/random selection and display improvements, and the
+  temporary pre-alpha always-on WiFi policy as commit `dfbdfed`.
+- Pushed `dfbdfed` to `origin/main`.
+- No firmware flash was performed as part of the commit/push request.
