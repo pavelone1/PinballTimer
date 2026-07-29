@@ -58,8 +58,8 @@ void DirectorControl::begin(GameModeManager& modeManager, GameModeContext& conte
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     // DirectorControl's own 2 handlers + WifiPortal's 5 +
-    // DirectorDashboard's 4 (registered separately on this same
-    // instance via server()) = 11 of 16 used, still headroom.
+    // DirectorDashboard's 7 (registered separately on this same
+    // instance via server()) = 14 of 16 used, still headroom.
     config.max_uri_handlers = 16;
     httpd_start(&server_, &config);
 

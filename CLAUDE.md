@@ -498,7 +498,8 @@ Two separate things now exist in this repo:
   `maximum_size`/flash/PSRAM metadata baked in directly instead of the
   previous `board_build.*`/`build_flags` patches in `platformio.ini`.
 
-**WiFi heap corruption (open, disabled for now)** -- first real flash
+**WiFi heap corruption (RESOLVED -- see "Replacement WiFi lifecycle"
+below)** -- first real flash
 of `app-rev2` (REV2 board, full firmware including this session's
 ball-count/dashboard work) bootlooped intermittently, alternating
 `BROWNOUT_RST` and `TG1WDT_SYS_RST` reset reasons. Bisection (building
@@ -551,7 +552,25 @@ when it's off; `BootMenu`'s "WiFi Setup" item and `DirectorMenu`'s two
 WiFi rows stay visible (so the menu shape doesn't silently change) but
 are labeled "(disabled)" and are inert -- selecting them does nothing
 rather than handing off to a WiFi flow that was never brought up.
-Flip the flag back to `true` once the real fix lands.
+
+**The fix, once actually applied: stop calling `WiFi.mode(WIFI_AP_STA)`
+at all.** The bisection above had already isolated the exact trigger
+line -- the "root cause not yet found" conclusion was a mistake, drawn
+from the coredump backtrace running into Espressif's own precompiled
+WiFi library and unresolved stack frames, which was taken as proof the
+bug was unreachable without custom ESP-IDF tooling. It wasn't: the
+crash's *internal* mechanism was never actually necessary to explain,
+because the trigger call was already known and avoidable. Removing all
+runtime use of `WIFI_AP_STA` (the radio now operates exclusively as
+either a station or an access point, never both) resolved it with no
+other change needed. See "Replacement WiFi lifecycle" below for what
+was rebuilt on top of that fix, and `CODEX.md` for the implementation
+log. Lesson for next time: a bisection that names an exact triggering
+call ends the search for *that* call, even if the crash's internal
+mechanism (here, vendor-library heap corruption) remains unexplained --
+don't let "the crash happens inside code we don't control" become a
+reason to stop short of the workaround that's already sitting in the
+bisection result.
 
 **Replacement WiFi lifecycle (July 2026):** WiFi is enabled again,
 but the firmware no longer enters `WIFI_AP_STA`, the mode implicated
@@ -568,11 +587,15 @@ started only after an AP or STA netif exists, retaining the earlier
 venue-network service for radio stability; either interface still
 provides the same director API/dashboard when selected.
 
-The normal product flow is now explicitly power-gated. Every physical
-boot starts with `WiFi.mode(WIFI_OFF)` and does not initialize the
-network stack/HTTP services until the operator selects `Turn WiFi ON`
-in Boot Menu's WiFi submenu. Saved credentials survive, but radio
-power and `Keep WiFi Alive` do not. On explicit enable, a device with
+The normal product flow is explicitly power-gated: every physical boot would
+start with `WiFi.mode(WIFI_OFF)` and wait for `Turn WiFi ON`. **Temporary
+pre-alpha override:** `kPreAlphaWifiAlwaysOn` in `FeatureFlags.h` is currently
+`true` because the debug timer is bench-powered. While true, WiFi starts on
+every boot, modem sleep is disabled, the off/keep-alive controls are locked
+on, and Serial reminds every 15 minutes. Remind the user that this override
+still needs to be removed at the alpha milestone. Saved credentials survive;
+with the override removed, radio power and `Keep WiFi Alive` do not. On
+explicit enable, a device with
 no credentials broadcasts `PinballTimerXXXX`, where `XXXX` is the
 final four uppercase hexadecimal digits of its WiFi station MAC
 address; one with credentials tries station mode. After 30 seconds
@@ -584,10 +607,11 @@ The AP and LAN use the same `esp_http_server` instance and routes
 (`/`, `/status`, `/command`, `/game-setup`, `/game-live`, and the
 WiFi setup endpoints). Submitting new credentials acknowledges the
 browser request, closes the AP, and returns to exclusive station mode.
-The shared interface also exposes a read-only machine database at
-`/machines` and a streamed JSON connector at `/api/machines`. The API
-returns each record's stable ID, name, type, ball count, configured
-play-time fields, and resolved play time; it has no mutation routes.
+The shared interface exposes machine database management at `/machines`.
+`GET /api/machines` streams JSON; `POST /api/machines` adds, updates, or
+removes validated records. `GET /api/machines.csv` downloads a complete
+backup and `POST /api/machines.csv?mode=add|replace` imports one. Add mode
+assigns new stable IDs; replace mode preserves backup IDs.
 See `CODEX.md` under "WiFi Stability, Automatic Provisioning, and
 Database Read API" for the implementation log and verification record.
 The subsequent connection-status, one-level menu navigation, forget-network,
@@ -596,6 +620,20 @@ credential rollback work is recorded in `CODEX.md` under "WiFi Setup
 Usability and Connection Recovery".
 The later boot-off/runtime-only keep-alive policy is recorded under
 "WiFi Radio Power Policy".
+The Windows discovery/join/API diagnostic is documented in `CODEX.md` under
+"PowerShell WiFi Connector" and lives at `tools/Connect-PinballTimer.ps1`.
+The database CRUD and CSV implementation is documented in `CODEX.md` under
+"Web Machine Database CRUD and CSV Backup".
+Gauntlet's first-position `Player's Choice` placeholder and categorized
+`Random Choice` flow are documented in `CODEX.md` under "Gauntlet Player's
+Choice and Random Machine Selection".
+Gauntlet active play now uses Round Robin's large-number ball screen; see
+`CODEX.md` under "Gauntlet Large Ball Status".
+Gauntlet's four-digit player timers now render total seconds as `MM:SS`; see
+`CODEX.md` under "Gauntlet Timer MM:SS Formatting".
+**Firmware workflow:** always ask the user before flashing/uploading firmware.
+Build, test, commit, or push instructions do not implicitly authorize a flash.
+See `CODEX.md` under "Firmware Flash Approval Rule".
 
 ## Firmware architecture
 Built module-by-module following the layered structure in the
@@ -741,7 +779,46 @@ PlatformIO environment (`app`) with its own tiny entry point at
   placeholder live view -- proves the extended `/status` data contract
   works: names, colors, rounds remaining, timers, machine name,
   gameOver -- NOT the final visual design, which is pending a
-  reference photo of the physical device to model it after). WiFi
+  reference photo of the physical device to model it after).
+
+  **Game control + player/mode independence, 2026-07-28:** confirmed
+  player identity (name, button/color) already lives in exactly one
+  shared place -- `PlayerManager` (RAM) + `GameStorage` (NVS), with
+  stated defaults ("Player 1 RED" etc.) -- and is never duplicated into
+  a mode's own config (`RoundRobinConfig`/`GauntletConfig` only store
+  counts/timer/ball-count/machine selection, no names), so the same
+  player roster already carries over correctly across modes/sessions
+  without any change. Made this obvious on `/game-setup` by moving the
+  Players section above Mode Settings with an explanatory note, instead
+  of leaving it visually interleaved with mode-specific fields.
+  Separately, `DirectorCommandType::StartGame`/`StartFirstTimer`/
+  `Pause`/`Resume`/`Reset` were already fully implemented in
+  `DirectorControl::execute()` but nothing in either dashboard page
+  called them -- added buttons for all five (`/game-setup`) and
+  Pause/Resume/Reset (`/game-live`, where a director watching the game
+  is more likely to want them), plus a live mode/gameStarted/
+  firstTimerStarted/paused readout on both pages (`/status` already
+  exposed all of it). Verified via a mocked-fetch browser preview,
+  including that the confirm() guard on Reset correctly blocks the
+  command when declined.
+
+  **Fixed stored-XSS in `/game-live`, 2026-07-28 (note for Codex, whose
+  work this page is part of):** its player-card renderer built each
+  card via `div.innerHTML = swatch + '<b>' + d.name + ...` -- `d.name`
+  is a director-settable player name (`SetPlayerName`) reflected back
+  through `/status` to every viewer of this page, so a name containing
+  markup (e.g. `<img src=x onerror=...>`) would execute in any browser
+  polling `/game-live`, not just the one that set it. Fixed by
+  switching that render function to `document.createElement()` +
+  `.textContent` for every untrusted field (name, formatted timer,
+  rounds-remaining), matching the pattern the `/machines` page already
+  used correctly (`cell.textContent = value`) -- `/game-live` was the
+  one spot still using string-concatenated `innerHTML`. No server-side
+  change needed; this was purely a client-side rendering bug in
+  `kLivePageHtml`'s `render()` function. Same class of bug is worth
+  double-checking if any future page interpolates director-settable
+  strings (player/machine names) into `innerHTML` instead of
+  `textContent`/DOM properties. WiFi
   credentials for the one fixed venue network come from
   `include/Secrets.h` (gitignored, template at `Secrets.h.example`),
   written into `SettingsStorage` (NVS) once on first boot only — see

@@ -23,6 +23,10 @@ public:
                 bool hasPlayTime);
     bool remove(MachineId id);
 
+    // Replaces the complete persistent catalog. All records are
+    // validated (including unique, nonzero IDs) before NVS is touched.
+    bool replaceAll(const MachineRecord* records, uint16_t count);
+
 private:
     Preferences prefs_;
     MachineCatalog catalog_;
@@ -32,5 +36,6 @@ private:
     bool seedDefaultsIfEmpty();
     bool persistIndex();
     bool persistRecord(const MachineRecord& record);
+    bool persistCatalog();
     void recordKey(MachineId id, char* out, size_t outSize) const;
 };

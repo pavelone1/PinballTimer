@@ -5,6 +5,9 @@
 
 namespace {
 constexpr uint8_t MAX_VISIBLE_ROWS = 5;
+const char* const RANDOM_CATEGORY_LABELS[] = {
+    "EM", "Solid State", "DMD", "Modern", "ANY"
+};
 
 uint16_t windowStart(uint16_t selected, uint16_t total)
 {
@@ -53,26 +56,50 @@ void GauntletConfigMenu::render(TftDisplayManager& tft) const
             for (uint16_t i = start; i < total && count < MAX_VISIBLE_ROWS; ++i) {
                 const MachineId id = config_->machineAssignment(i);
                 const MachineRecord* record = id ? catalog_->find(id) : nullptr;
+                const auto kind = config_->assignmentKind(i);
+                const char* assignmentName = record ? record->name : "Not Assigned";
+                char specialName[24] = {};
+                if (kind == GauntletConfig::AssignmentKind::PlayersChoice) {
+                    assignmentName = "Player's Choice";
+                } else if (kind == GauntletConfig::AssignmentKind::RandomChoice) {
+                    std::snprintf(
+                        specialName, sizeof(specialName), "Random: %s",
+                        RANDOM_CATEGORY_LABELS[static_cast<uint8_t>(
+                            config_->randomCategory(i))]);
+                    assignmentName = specialName;
+                }
                 std::snprintf(rows[count], sizeof(rows[count]), "%c %u: %s",
                               i == selectedSlot_ ? '>' : ' ',
                               static_cast<unsigned>(i + 1),
-                              record ? record->name : "Not Assigned");
+                              assignmentName);
                 lines[count] = rows[count];
                 ++count;
             }
             break;
         }
         case Screen::SelectCatalogMachine: {
-            const uint16_t total = catalog_->count();
-            if (total == 0) {
-                lines[count++] = "Database Is Empty";
-                break;
-            }
+            const uint16_t total = catalog_->count() + 2;
             const uint16_t start = windowStart(catalogIndex_, total);
             for (uint16_t i = start; i < total && count < MAX_VISIBLE_ROWS; ++i) {
-                const MachineRecord* record = catalog_->at(i);
+                const char* label = i == 0 ? "Player's Choice 3B 3:00" :
+                                    i == 1 ? "Random Choice" :
+                                    catalog_->at(i - 2)->name;
                 std::snprintf(rows[count], sizeof(rows[count]), "%c %s",
-                              i == catalogIndex_ ? '>' : ' ', record->name);
+                              i == catalogIndex_ ? '>' : ' ', label);
+                lines[count] = rows[count];
+                ++count;
+            }
+            break;
+        }
+        case Screen::SelectRandomCategory: {
+            const uint16_t total =
+                static_cast<uint8_t>(GauntletConfig::RandomCategory::Count);
+            const uint16_t selected = static_cast<uint8_t>(randomCategory_);
+            const uint16_t start = windowStart(selected, total);
+            for (uint16_t i = start; i < total && count < MAX_VISIBLE_ROWS; ++i) {
+                std::snprintf(
+                    rows[count], sizeof(rows[count]), "%c %s",
+                    i == selected ? '>' : ' ', RANDOM_CATEGORY_LABELS[i]);
                 lines[count] = rows[count];
                 ++count;
             }
@@ -83,11 +110,20 @@ void GauntletConfigMenu::render(TftDisplayManager& tft) const
             lines[count++] = value; lines[count++] = "Press to Save";
             break;
         case Screen::ValidationWarning:
-            std::snprintf(value, sizeof(value), "Machine %u Not Assigned",
-                          lastValidation_.machineIndex + 1);
-            lines[count++] = value;
-            lines[count++] = "Assign Every Machine";
-            lines[count++] = "Before Starting";
+            if (lastValidation_.error ==
+                GauntletConfig::ValidationError::NoRandomCandidates) {
+                std::snprintf(value, sizeof(value), "Machine %u Random Empty",
+                              lastValidation_.machineIndex + 1);
+                lines[count++] = value;
+                lines[count++] = "Add a Matching Game";
+                lines[count++] = "or Change the Type";
+            } else {
+                std::snprintf(value, sizeof(value), "Machine %u Not Assigned",
+                              lastValidation_.machineIndex + 1);
+                lines[count++] = value;
+                lines[count++] = "Assign Every Machine";
+                lines[count++] = "Before Starting";
+            }
             break;
     }
     tft.showStatusScreen(title(), lines, count, ColorId::Black,

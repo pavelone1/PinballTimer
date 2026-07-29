@@ -10,6 +10,7 @@ void GauntletConfigMenu::begin(
     selectedItem_ = Item::StartGauntlet;
     selectedSlot_ = 0;
     catalogIndex_ = 0;
+    randomCategory_ = GauntletConfig::RandomCategory::EM;
     pendingMachineCount_ = config.machineCount();
     pendingPlayerCount_ = config.playerCount();
     lastValidation_ = {};
@@ -41,6 +42,8 @@ GauntletConfigMenu::Screen GauntletConfigMenu::screen() const { return screen_; 
 GauntletConfigMenu::Item GauntletConfigMenu::selectedItem() const { return selectedItem_; }
 uint8_t GauntletConfigMenu::selectedMachineSlot() const { return selectedSlot_; }
 uint16_t GauntletConfigMenu::selectedCatalogIndex() const { return catalogIndex_; }
+GauntletConfig::RandomCategory
+GauntletConfigMenu::selectedRandomCategory() const { return randomCategory_; }
 uint8_t GauntletConfigMenu::pendingMachineCount() const { return pendingMachineCount_; }
 uint8_t GauntletConfigMenu::pendingPlayerCount() const { return pendingPlayerCount_; }
 GauntletConfig::ValidationResult GauntletConfigMenu::lastValidation() const { return lastValidation_; }
@@ -53,6 +56,7 @@ const char* GauntletConfigMenu::title() const
         case Screen::ConfirmMachineCountDecrease: return "Remove Assignments?";
         case Screen::SelectMachineSlot: return "Assign Machines";
         case Screen::SelectCatalogMachine: return "Select Machine";
+        case Screen::SelectRandomCategory: return "Random Machine Type";
         case Screen::EditPlayerCount: return "Number of Players";
         case Screen::ValidationWarning: return "Gauntlet Not Ready";
     }
@@ -89,10 +93,17 @@ void GauntletConfigMenu::rotate(bool clockwise)
         const uint8_t count = config_->machineCount();
         selectedSlot_ = clockwise ? (selectedSlot_ + 1) % count
                                   : (selectedSlot_ + count - 1) % count;
-    } else if (screen_ == Screen::SelectCatalogMachine && catalog_->count() > 0) {
-        const uint16_t count = catalog_->count();
+    } else if (screen_ == Screen::SelectCatalogMachine) {
+        const uint16_t count = catalog_->count() + 2;
         catalogIndex_ = clockwise ? (catalogIndex_ + 1) % count
                                   : (catalogIndex_ + count - 1) % count;
+    } else if (screen_ == Screen::SelectRandomCategory) {
+        const uint8_t count =
+            static_cast<uint8_t>(GauntletConfig::RandomCategory::Count);
+        const uint8_t current = static_cast<uint8_t>(randomCategory_);
+        randomCategory_ = static_cast<GauntletConfig::RandomCategory>(
+            clockwise ? (current + 1) % count
+                      : (current + count - 1) % count);
     } else if (screen_ == Screen::EditPlayerCount) {
         if (clockwise && pendingPlayerCount_ < GauntletConfig::MAX_PLAYERS) {
             ++pendingPlayerCount_;
@@ -128,11 +139,22 @@ GauntletConfigMenu::Outcome GauntletConfigMenu::select()
         return Outcome::None;
     }
     if (screen_ == Screen::SelectCatalogMachine) {
-        if (catalog_->count() > 0) {
-            config_->assignMachine(selectedSlot_, catalog_->at(catalogIndex_)->id,
-                                   *catalog_);
+        if (catalogIndex_ == 0) {
+            config_->assignPlayersChoice(selectedSlot_);
+            screen_ = Screen::SelectMachineSlot;
+        } else if (catalogIndex_ == 1) {
+            randomCategory_ = GauntletConfig::RandomCategory::EM;
+            screen_ = Screen::SelectRandomCategory;
+        } else {
+            config_->assignMachine(
+                selectedSlot_, catalog_->at(catalogIndex_ - 2)->id, *catalog_);
             screen_ = Screen::SelectMachineSlot;
         }
+        return Outcome::None;
+    }
+    if (screen_ == Screen::SelectRandomCategory) {
+        config_->assignRandomChoice(selectedSlot_, randomCategory_);
+        screen_ = Screen::SelectMachineSlot;
         return Outcome::None;
     }
     if (screen_ == Screen::EditPlayerCount) {

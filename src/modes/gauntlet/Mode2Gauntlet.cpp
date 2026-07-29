@@ -2,7 +2,7 @@
 
 #include <cstdio>
 #include <cstring>
-#include <cctype>
+#include <esp_system.h>
 #include "game/ButtonColors.h"
 
 const char* Mode2Gauntlet::name() const { return "Gauntlet"; }
@@ -45,6 +45,10 @@ uint8_t Mode2Gauntlet::configuredPlayerCount() const
 
 MachineId Mode2Gauntlet::configuredMachineId() const
 {
+    if (configured_) {
+        const GauntletMachineInstance* machine = session_.machineAt(0);
+        return machine ? machine->machineId : 0;
+    }
     return config_.machineAssignment(0);
 }
 
@@ -64,7 +68,7 @@ bool Mode2Gauntlet::configure(
     const GauntletConfig& config, const MachineCatalog& catalog)
 {
     GauntletSession configuredSession;
-    if (!config.buildSession(catalog, configuredSession)) {
+    if (!config.buildSession(catalog, configuredSession, esp_random())) {
         return false;
     }
     session_ = configuredSession;
@@ -102,6 +106,9 @@ void Mode2Gauntlet::setupAssignments(GameModeContext& context, uint8_t playerCou
         context.displayAssignments.assignToSharedTimer(display, timerIds_[i]);
         context.timers.setAssociatedPlayer(timerIds_[i], player);
         context.timers.setDisplayAssignment(timerIds_[i], display);
+        context.numericDisplays.setFormat(
+            display, DisplayFormat::TimeMinutesSeconds);
+        context.numericDisplays.setColon(display, true);
         context.numericDisplays.setValue(display, pool);
         context.numericDisplays.setFlashing(display, false);
         context.buttonLights.setBaseState(button, LightPattern::Off);
@@ -398,23 +405,19 @@ void Mode2Gauntlet::render(GameModeContext& context)
         return;
     }
 
-    char upperName[MachineRecord::NAME_CAPACITY];
-    std::strncpy(upperName, machine->machineName, sizeof(upperName) - 1);
-    upperName[sizeof(upperName) - 1] = '\0';
-    for (char* p = upperName; *p; ++p) {
-        *p = static_cast<char>(std::toupper(static_cast<unsigned char>(*p)));
-    }
     const PlayerId player =
         context.buttonAssignments.assignment(turns_.activeButton()).player;
-    char ballLine[16];
-    const uint8_t ball = machine->ballCount -
+    const uint8_t ballNumber = machine->ballCount -
         context.players.roundsRemaining(player) + 1;
-    std::snprintf(ballLine, sizeof(ballLine), "Ball %u", ball);
     const char* playerName = context.players.name(player);
-    const char* lines[] = {playerName[0] ? playerName : "Player", ballLine};
-    context.tft.showStatusScreen(upperName, lines, 2, ColorId::Black,
-                                 context.players.assignedColor(player),
-                                 context.players.assignedColor(player));
+    const ColorId playerColor = context.players.assignedColor(player);
+    context.tft.showBallScreen(
+        playerName[0] ? playerName : "PLAYER",
+        ballNumber,
+        ColorId::Black,
+        playerColor,
+        playerColor,
+        playerColor);
 }
 
 bool Mode2Gauntlet::anyPlayerHasTime(GameModeContext& context) const

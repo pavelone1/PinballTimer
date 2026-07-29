@@ -103,8 +103,11 @@ private:
     bool wifiPowered_ = false;
     bool networkServicesInitialized_ = false;
     unsigned long wifiDisconnectedSinceMs_ = 0;
+    unsigned long lastPreAlphaWifiReminderMs_ = 0;
 
     static constexpr unsigned long WIFI_FALLBACK_AP_DELAY_MS = 30000;
+    static constexpr unsigned long PRE_ALPHA_WIFI_REMINDER_MS =
+        15UL * 60UL * 1000UL;
 
     // WifiSetupMenu can close itself autonomously (connect success),
     // not just from an input event -- this edge-detects that so

@@ -16,6 +16,14 @@ EncoderEvent clockwise()
     return {EncoderEventType::RotatedClockwise, 0, 0};
 }
 
+void openMachineChoice()
+{
+    menu.handleEncoderEvent(clockwise());
+    menu.handleEncoderEvent(clockwise());
+    menu.handleEncoderEvent(press());
+    menu.handleEncoderEvent(press());
+}
+
 void setUp()
 {
     catalog.clear();
@@ -58,12 +66,51 @@ void test_root_menu_order_puts_machine_count_second()
         static_cast<int>(menu.selectedItem()));
 }
 
+void test_players_choice_is_first_machine_option()
+{
+    openMachineChoice();
+    TEST_ASSERT_EQUAL_INT(
+        static_cast<int>(GauntletConfigMenu::Screen::SelectCatalogMachine),
+        static_cast<int>(menu.screen()));
+    TEST_ASSERT_EQUAL_UINT16(0, menu.selectedCatalogIndex());
+
+    menu.handleEncoderEvent(press());
+    TEST_ASSERT_EQUAL_INT(
+        static_cast<int>(GauntletConfig::AssignmentKind::PlayersChoice),
+        static_cast<int>(config.assignmentKind(0)));
+}
+
+void test_random_choice_opens_machine_type_selector()
+{
+    openMachineChoice();
+    menu.handleEncoderEvent(clockwise());
+    menu.handleEncoderEvent(press());
+    TEST_ASSERT_EQUAL_INT(
+        static_cast<int>(GauntletConfigMenu::Screen::SelectRandomCategory),
+        static_cast<int>(menu.screen()));
+    TEST_ASSERT_EQUAL_INT(
+        static_cast<int>(GauntletConfig::RandomCategory::EM),
+        static_cast<int>(menu.selectedRandomCategory()));
+
+    for (uint8_t i = 0; i < 4; ++i) {
+        menu.handleEncoderEvent(clockwise());
+    }
+    menu.handleEncoderEvent(press());
+    TEST_ASSERT_EQUAL_INT(
+        static_cast<int>(GauntletConfig::AssignmentKind::RandomChoice),
+        static_cast<int>(config.assignmentKind(0)));
+    TEST_ASSERT_EQUAL_INT(
+        static_cast<int>(GauntletConfig::RandomCategory::Any),
+        static_cast<int>(config.randomCategory(0)));
+}
+
 int main()
 {
     UNITY_BEGIN();
     RUN_TEST(test_start_is_first_and_warns_when_machine_unassigned);
     RUN_TEST(test_assigned_configuration_can_start);
     RUN_TEST(test_root_menu_order_puts_machine_count_second);
+    RUN_TEST(test_players_choice_is_first_machine_option);
+    RUN_TEST(test_random_choice_opens_machine_type_selector);
     return UNITY_END();
 }
-

@@ -27,6 +27,7 @@ public:
         ConfirmMachineCountDecrease,
         SelectMachineSlot,
         SelectCatalogMachine,
+        SelectRandomCategory,
         EditPlayerCount,
         ValidationWarning
     };
@@ -46,6 +47,7 @@ public:
     Item selectedItem() const;
     uint8_t selectedMachineSlot() const;
     uint16_t selectedCatalogIndex() const;
+    GauntletConfig::RandomCategory selectedRandomCategory() const;
     uint8_t pendingMachineCount() const;
     uint8_t pendingPlayerCount() const;
     GauntletConfig::ValidationResult lastValidation() const;
@@ -60,6 +62,8 @@ private:
     Item selectedItem_ = Item::StartGauntlet;
     uint8_t selectedSlot_ = 0;
     uint16_t catalogIndex_ = 0;
+    GauntletConfig::RandomCategory randomCategory_ =
+        GauntletConfig::RandomCategory::EM;
     uint8_t pendingMachineCount_ = 1;
     uint8_t pendingPlayerCount_ = 4;
     GauntletConfig::ValidationResult lastValidation_;

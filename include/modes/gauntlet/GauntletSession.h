@@ -22,6 +22,8 @@ public:
 
     void clear();
     bool addMachine(const MachineRecord& machine);
+    bool addCustomMachine(const char* name, uint8_t ballCount,
+                          uint16_t playTimeSeconds);
     uint8_t machineCount() const;
     const GauntletMachineInstance* machineAt(uint8_t index) const;
     const GauntletMachineInstance* currentMachine() const;

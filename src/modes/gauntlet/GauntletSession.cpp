@@ -27,6 +27,28 @@ bool GauntletSession::addMachine(const MachineRecord& machine)
     return true;
 }
 
+bool GauntletSession::addCustomMachine(
+    const char* name, uint8_t ballCount, uint16_t playTimeSeconds)
+{
+    if (count_ >= MAX_MACHINES || !name || !name[0] ||
+        ballCount < MachineRecord::MIN_BALL_COUNT ||
+        ballCount > MachineRecord::MAX_BALL_COUNT ||
+        playTimeSeconds < MachineRecord::MIN_PLAY_TIME_SECONDS ||
+        playTimeSeconds > MachineRecord::MAX_PLAY_TIME_SECONDS) {
+        return false;
+    }
+    GauntletMachineInstance& instance = machines_[count_];
+    instance = {};
+    instance.instanceId = static_cast<uint16_t>(count_ + 1);
+    instance.machineId = 0;
+    std::strncpy(instance.machineName, name, MachineRecord::NAME_CAPACITY - 1);
+    instance.ballCount = ballCount;
+    instance.resolvedDefaultTimeSeconds = playTimeSeconds;
+    instance.state = GauntletMachineInstance::State::Pending;
+    ++count_;
+    return true;
+}
+
 uint8_t GauntletSession::machineCount() const { return count_; }
 
 const GauntletMachineInstance* GauntletSession::machineAt(uint8_t index) const

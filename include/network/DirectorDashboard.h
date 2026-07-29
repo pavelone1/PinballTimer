@@ -1,9 +1,9 @@
 #pragma once
 
 #include <esp_http_server.h>
-#include "game/MachineCatalog.h"
+#include "storage/MachineDatabase.h"
 
-// Serves director-facing HTML pages and a read-only machine-catalog
+// Serves director-facing HTML pages and the persistent machine-catalog
 // API over DirectorControl's
 // existing esp_http_server instance (same pattern as WifiPortal --
 // see that class's header comment for why esp_http_server, and why
@@ -24,16 +24,18 @@
 //                        to prove the /status data contract works
 //                        (player names/colors/rounds/timers, machine
 //                        name, gameOver), not as the final look.
-//   GET /machines    -- read-only browser view of the machine catalog.
-//   GET /api/machines -- read-only JSON representation of the same
-//                        records for integrations.
+//   GET /machines     -- browser CRUD and CSV backup/restore interface.
+//   GET /api/machines -- JSON representation of all records.
+//   POST /api/machines -- add/update/remove a validated record.
+//   GET /api/machines.csv -- complete CSV backup.
+//   POST /api/machines.csv?mode=add|replace -- validated CSV import.
 //
 // No interactive state machine like WifiPortal needs (no open()/
 // close(), no captive-portal DNS) -- both routes are just static pages
 // bound at begin() and always reachable once WiFi is up.
 class DirectorDashboard {
 public:
-    void begin(httpd_handle_t server, const MachineCatalog& machineCatalog);
+    void begin(httpd_handle_t server, MachineDatabase& machineDatabase);
 
     // No-op, same reason as DirectorControl::update()/WifiPortal's
     // routes don't need per-tick work here -- esp_http_server runs its
@@ -46,6 +48,9 @@ private:
     esp_err_t handleLivePage(httpd_req_t* req);
     esp_err_t handleMachinesPage(httpd_req_t* req);
     esp_err_t handleMachinesApi(httpd_req_t* req);
+    esp_err_t handleMachinesMutation(httpd_req_t* req);
+    esp_err_t handleMachinesCsvDownload(httpd_req_t* req);
+    esp_err_t handleMachinesCsvUpload(httpd_req_t* req);
 
     // esp_http_server handlers must be plain function pointers (no
     // captures) -- these trampolines recover `this` from the per-URI
@@ -54,6 +59,9 @@ private:
     static esp_err_t handleLivePageTrampoline(httpd_req_t* req);
     static esp_err_t handleMachinesPageTrampoline(httpd_req_t* req);
     static esp_err_t handleMachinesApiTrampoline(httpd_req_t* req);
+    static esp_err_t handleMachinesMutationTrampoline(httpd_req_t* req);
+    static esp_err_t handleMachinesCsvDownloadTrampoline(httpd_req_t* req);
+    static esp_err_t handleMachinesCsvUploadTrampoline(httpd_req_t* req);
 
-    const MachineCatalog* machineCatalog_ = nullptr;
+    MachineDatabase* machineDatabase_ = nullptr;
 };

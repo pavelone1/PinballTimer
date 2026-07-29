@@ -649,6 +649,8 @@ portal, and OTA capabilities:
   - Records include stable ID, name, type, ball count, configured play-time
     fields, and resolved play time.
   - No database mutation route was added.
+  - This initial read-only scope was later expanded by "Web Machine Database
+    CRUD and CSV Backup" below.
 - Updated `CLAUDE.md` with the replacement lifecycle and endpoint summary.
 - Added a cross-reference from that `CLAUDE.md` summary back to this detailed
   implementation and verification log.
@@ -759,3 +761,188 @@ and requested true radio-off behavior:
 - On this and every subsequent fresh boot, the expected state is WiFi OFF and
   `Keep WiFi Alive` OFF. Saved SSID/password data remains available for an
   explicit `Turn WiFi ON`.
+
+## PowerShell WiFi Connector
+
+On 2026-07-28, Codex added `tools/Connect-PinballTimer.ps1` for Windows-side
+WiFi and HTTP diagnostics:
+
+- Discovers a single visible `PinballTimerXXXX` SSID automatically or accepts
+  `-Ssid` when multiple timers are present.
+- Accepts a `SecureString` password, prompts securely, or reads
+  `WIFI_PORTAL_PASSWORD` internally from a supplied gitignored `Secrets.h`
+  without printing it.
+- Creates a separately named `PinballTimerConnector-<SSID>` Windows WLAN
+  profile, preserving pre-existing/user/group-policy profiles with the same
+  SSID name.
+- Joins the timer AP, waits up to a configurable timeout, and verifies both
+  `GET /status` and `GET /api/machines`.
+- Returns a structured PowerShell object containing connection state, base
+  URI, device/mode, machine count, and live/setup/database page URLs.
+- Supports `-NoJoin -Address <hostname-or-IP>` for a timer already reachable
+  on the LAN, `-InterfaceName` for multi-adapter systems, and
+  `-ForgetProfile` for connector-profile cleanup.
+- The temporary plaintext WLAN XML is deleted in a `finally` block and its
+  transient plaintext password variable is cleared after profile import.
+- Live verification against the connected REV2 board:
+  - Discovered `PinballTimerF928` at 75% signal.
+  - Joined it successfully using the project portal password.
+  - Reached `http://10.10.10.1/status`.
+  - Read four records from `http://10.10.10.1/api/machines`.
+  - A later `-NoJoin` verification could not reach the timer. Windows reported
+    its WiFi adapter disconnected, and two subsequent scans no longer showed
+    `PinballTimerF928`. With the current boot-off policy this is consistent
+    with, but does not by itself prove, a timer reset followed by a fresh boot
+    with WiFi OFF. Another run with serial/coredump capture is required to
+    determine why the AP disappeared.
+
+## Web Machine Database CRUD and CSV Backup
+
+On 2026-07-28, Codex expanded the shared `/machines` interface from read-only
+access to persistent database management:
+
+- `/machines` now provides a browser form and selectable table for adding,
+  modifying, and deleting machine records.
+- `POST /api/machines` accepts form-encoded `add`, `update`, and `remove`
+  actions. It uses `MachineDatabase` rather than mutating `MachineCatalog`
+  directly, so the existing field validation and per-record NVS persistence
+  remain authoritative.
+- `GET /api/machines.csv` streams the complete catalog as a downloadable CSV
+  backup with the header:
+  `id,name,type,ballCount,playTimeSeconds,hasPlayTime`.
+- `POST /api/machines.csv?mode=add` validates the complete upload, checks
+  catalog capacity, ignores source IDs, and assigns new monotonic IDs. If an
+  NVS add fails, records added by that request are removed.
+- `POST /api/machines.csv?mode=replace` validates all records and unique,
+  nonzero IDs before touching NVS, then rebuilds the catalog while preserving
+  backup IDs. `MachineDatabase::replaceAll()` makes a RAM backup and attempts
+  to restore it if persistence fails.
+- CSV names are quoted and embedded quotes are doubled on export. Import
+  supports quoted fields, doubled quotes, CRLF/LF, and an optional UTF-8 BOM.
+- Uploads are limited to 16 KiB and 100 records. The CSV body and record array
+  use temporary heap allocations rather than large HTTP-task stack buffers.
+- Browser import has explicit `Add Records` and confirmation-gated
+  `Replace Entire Database` actions.
+- The shared HTTP server now uses 14 of its configured 16 URI-handler slots.
+- Verification:
+  - `pio test -e native`: 50/50 tests passed.
+  - `pio run -e app-rev2`: passed after final input hardening
+    (918,709 bytes flash; 58,100 bytes RAM).
+
+## Gauntlet Player's Choice and Random Machine Selection
+
+On 2026-07-28, Codex expanded each Gauntlet machine assignment beyond
+database-record selection:
+
+- `Player's Choice 3B 3:00` is always the first machine-selection option. It
+  creates a placeholder session instance with three balls and a fixed
+  three-minute contribution to every player's starting time pool, allowing
+  the actual pinball machine to be chosen outside the timer.
+- `Random Choice` is the second option. Selecting it opens an
+  `EM` / `Solid State` / `DMD` / `Modern` / `Any` category menu.
+- Gauntlet configuration now stores the assignment kind and random category
+  separately from database machine IDs. Existing explicit machine assignments
+  remain unchanged.
+- Random choices validate that at least one matching database record exists.
+  An empty category produces a specific setup warning rather than starting an
+  invalid session.
+- Random choices are resolved into real catalog records when the Gauntlet
+  session is built. Firmware supplies `esp_random()` entropy; a small
+  deterministic seed path keeps the pure configuration logic unit-testable.
+  The resolved first record also becomes the current game-storage machine name.
+- Slot summaries display `Player's Choice` or `Random: <category>` so the
+  special assignment remains visible before the game starts.
+- `GauntletSession::addCustomMachine()` supports the Player's Choice
+  placeholder without inventing a database ID; its session machine ID is zero.
+- Verification:
+  - `pio test -e native`: 55/55 tests passed, including Player's Choice
+    parameters, random-category filtering, empty-category validation, option
+    order, and category-menu selection.
+  - `pio run -e app-rev2`: passed (920,237 bytes flash; 58,172 bytes RAM).
+
+### 2026-07-28 Gauntlet/Database Firmware Deployment
+
+- Uploaded the current uncommitted `app-rev2` firmware over USB to the
+  ESP32-S3 detected on `COM13`, MAC `c0:4e:30:06:f9:28`.
+- The image includes the Gauntlet Player's Choice/random-selection work and
+  the pending web machine-database CRUD/CSV interface.
+- PlatformIO reported 920,237 bytes of flash and 58,172 bytes of RAM used.
+- Esptool verified the hash of every written image region and hard-reset the
+  board via RTS. PlatformIO reported upload success.
+
+## Gauntlet Large Ball Status
+
+On 2026-07-28, Codex changed Gauntlet's active-play status screen to use the
+same dedicated large-ball layout as Round Robin:
+
+- The active player's name remains at the top in that player's assigned color.
+- The `Ball` label appears below the name.
+- The current ball number uses the shared 16x text size and fills most of the
+  remaining TFT area.
+- Gauntlet's machine name remains visible on the between-machine handoff
+  screen before play begins.
+- Verification and deployment:
+  - `pio run -e app-rev2`: passed (920,697 bytes flash; 58,172 bytes RAM).
+  - Uploaded over USB to the REV2 board on `COM13`, MAC
+    `c0:4e:30:06:f9:28`.
+  - Esptool verified every written image-region hash and hard-reset the board;
+    PlatformIO reported upload success.
+
+## Gauntlet Timer MM:SS Formatting
+
+On 2026-07-28, Codex corrected Gauntlet's four-digit player timers:
+
+- Every active Gauntlet timer display now explicitly uses
+  `DisplayFormat::TimeMinutesSeconds` with its colon enabled.
+- Values remain stored and updated as total seconds internally; only rendering
+  changes. For example, 180 seconds is displayed as `03:00`.
+- This matches Round Robin's existing timer-display setup and prevents
+  Gauntlet from inheriting the numeric manager's raw-seconds default.
+- Verification and deployment:
+  - `pio run -e app-rev2 -t upload`: build and upload passed (920,721 bytes
+    flash; 58,172 bytes RAM).
+  - Uploaded to the REV2 board on `COM13`, MAC `c0:4e:30:06:f9:28`.
+  - Esptool verified every written image-region hash and hard-reset the board.
+
+## Temporary Pre-Alpha Always-On WiFi Policy
+
+On 2026-07-28, the user confirmed that the development timer remains attached
+to a bench power supply and requested continuous WiFi through the alpha
+milestone:
+
+- Added `kPreAlphaWifiAlwaysOn = true` in `FeatureFlags.h` as an explicit,
+  temporary release-stage switch.
+- While enabled, every physical boot automatically starts WiFi using the saved
+  station network or the normal `PinballTimerXXXX` fallback AP.
+- Modem sleep is disabled for the entire boot, including application standby,
+  so the HTTP/debug interface remains responsive.
+- Attempts to use the Boot Menu's WiFi power or keep-alive toggles cannot turn
+  the radio or keep-alive policy off. The menu labels them
+  `DEV: WiFi Forced ON` and `DEV: Keep Alive ON`.
+- Serial prints an immediate boot warning and repeats a
+  `[PRE-ALPHA REMINDER]` every 15 minutes.
+- At the alpha milestone, set `kPreAlphaWifiAlwaysOn` to `false` to restore
+  the normal production policy: WiFi off at boot, explicit power control, and
+  runtime-only keep-alive.
+- Verification and deployment:
+  - `pio run -e app-rev2`: passed (923,809 bytes flash; 58,172 bytes RAM).
+  - Uploaded over USB to the REV2 board on `COM13`, MAC
+    `c0:4e:30:06:f9:28`; esptool verified every image-region hash and
+    hard-reset the board.
+  - A brief serial attachment occurred after the boot warning had already
+    printed, so it captured no matching reminder line.
+  - A direct `pinballtimer.local` station-mode probe timed out; the subsequent
+    Windows scan found the live fallback AP `PinballTimerF928`.
+  - `tools/Connect-PinballTimer.ps1` joined that AP and successfully read
+    `http://10.10.10.1/status` plus four machine records from the database API,
+    confirming the radio and HTTP interface remained active after reboot.
+
+## Firmware Flash Approval Rule
+
+On 2026-07-28, the user established a standing workflow rule:
+
+- Codex must ask the user before every firmware flash/upload.
+- A request to edit, build, test, commit, or push does not itself authorize a
+  flash.
+- Codex may proceed only after the user explicitly approves that specific
+  flash.

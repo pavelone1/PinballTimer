@@ -833,12 +833,14 @@ void BootMenu::renderWifiSubmenu()
     linePtrs[1] = lineBuf[1];
 
     const char* labels[WIFI_ITEM_COUNT] = {
-        WiFi.getMode() == WIFI_MODE_NULL ? "Turn WiFi ON" : "Turn WiFi OFF",
+        kPreAlphaWifiAlwaysOn ? "DEV: WiFi Forced ON" :
+            (WiFi.getMode() == WIFI_MODE_NULL ? "Turn WiFi ON" : "Turn WiFi OFF"),
         "Join Network (Encoder)",
         "Join Network (Web)",
         "Use Hotspot Only (Adhoc)",
         "Forget WiFi Network",
-        settings_->wifiKeepAlive() ? "Keep WiFi Alive: ON" : "Keep WiFi Alive: OFF",
+        kPreAlphaWifiAlwaysOn ? "DEV: Keep Alive ON" :
+            (settings_->wifiKeepAlive() ? "Keep WiFi Alive: ON" : "Keep WiFi Alive: OFF"),
         wifiPortal_->persistentHotspot() ? "Keep Hotspot: ON" : "Keep Hotspot: OFF"
     };
 

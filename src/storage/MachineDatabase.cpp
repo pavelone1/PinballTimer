@@ -80,6 +80,37 @@ bool MachineDatabase::remove(MachineId id)
     return persistIndex();
 }
 
+bool MachineDatabase::replaceAll(const MachineRecord* records, uint16_t count)
+{
+    if (!open_ || count > MachineCatalog::MAX_RECORDS ||
+        (count > 0 && records == nullptr)) {
+        return false;
+    }
+
+    MachineCatalog candidate;
+    for (uint16_t i = 0; i < count; ++i) {
+        if (!candidate.importRecord(records[i])) {
+            return false;
+        }
+    }
+
+    const MachineCatalog backup = catalog_;
+    if (!prefs_.clear()) {
+        return false;
+    }
+
+    catalog_ = candidate;
+    if (persistCatalog()) {
+        return true;
+    }
+
+    // Best-effort rollback if an NVS write fails mid-replacement.
+    prefs_.clear();
+    catalog_ = backup;
+    persistCatalog();
+    return false;
+}
+
 bool MachineDatabase::load()
 {
     catalog_.clear();
@@ -145,6 +176,17 @@ bool MachineDatabase::persistRecord(const MachineRecord& record)
     char key[16];
     recordKey(record.id, key, sizeof(key));
     return prefs_.putBytes(key, &record, sizeof(record)) == sizeof(record);
+}
+
+bool MachineDatabase::persistCatalog()
+{
+    for (uint16_t i = 0; i < catalog_.count(); ++i) {
+        const MachineRecord* record = catalog_.at(i);
+        if (!record || !persistRecord(*record)) {
+            return false;
+        }
+    }
+    return persistIndex();
 }
 
 void MachineDatabase::recordKey(MachineId id, char* out, size_t outSize) const

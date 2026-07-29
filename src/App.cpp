@@ -60,9 +60,9 @@ void App::begin()
 
     power_.begin(context_);
 
-    // Credentials persist, but radio power never does: every physical
-    // boot starts with the RF modem fully disabled until the operator
-    // explicitly turns WiFi on from BootMenu.
+    // Normal product behavior is boot-off/explicit-on. During the temporary
+    // bench-powered pre-alpha phase, FeatureFlags forces the radio on and
+    // disables modem sleep so the web/debug interface stays reachable.
     if (kWifiFeatureEnabled) {
         // First-boot-only bootstrap: Secrets.h (gitignored, see
         // Secrets.h.example) supplies the one fixed venue network this
@@ -81,8 +81,16 @@ void App::begin()
         if (settings_.wifiOperatingMode() == WifiOperatingMode::Both) {
             settings_.setWifiOperatingMode(WifiOperatingMode::StationOnly);
         }
-        WiFi.mode(WIFI_OFF);
-        wifiPowered_ = false;
+        if (kPreAlphaWifiAlwaysOn) {
+            settings_.setWifiKeepAlive(true);
+            enableWifi();
+            lastPreAlphaWifiReminderMs_ = millis();
+            Serial.println(
+                "[PRE-ALPHA] WiFi is forced ON with modem sleep disabled");
+        } else {
+            WiFi.mode(WIFI_OFF);
+            wifiPowered_ = false;
+        }
     }
 
     // BootMenu is the boot screen (see App::update()'s input routing)
@@ -259,6 +267,14 @@ void App::update()
         }
     }
 
+    if (kPreAlphaWifiAlwaysOn &&
+        millis() - lastPreAlphaWifiReminderMs_ >= PRE_ALPHA_WIFI_REMINDER_MS) {
+        lastPreAlphaWifiReminderMs_ = millis();
+        Serial.println(
+            "[PRE-ALPHA REMINDER] WiFi is still forced ON; disable "
+            "kPreAlphaWifiAlwaysOn at alpha");
+    }
+
     power_.update();
 
     // Drain battery events. buzzer_ is now wired for button/encoder
@@ -296,7 +312,7 @@ void App::initializeNetworkServices()
         network_, settings_, directorControl_, power_, gameStorage_);
     directorControl_.begin(gameModeManager_, context_, statusReporter_, power_);
     wifiPortal_.begin(directorControl_.server(), settings_, tft_, WIFI_PORTAL_PASSWORD);
-    directorDashboard_.begin(directorControl_.server(), machineDatabase_.catalog());
+    directorDashboard_.begin(directorControl_.server(), machineDatabase_);
     networkServicesInitialized_ = true;
 }
 
@@ -332,6 +348,15 @@ void App::enableWifi()
 
 void App::disableWifi()
 {
+    if (kPreAlphaWifiAlwaysOn) {
+        Serial.println(
+            "[PRE-ALPHA] WiFi OFF ignored; radio is forced ON until alpha");
+        enableWifi();
+        settings_.setWifiKeepAlive(true);
+        network_.setKeepAlive(true);
+        return;
+    }
+
     if (!wifiPowered_) {
         return;
     }
@@ -501,7 +526,13 @@ void App::handleEncoderEvent(const EncoderEvent& event)
             wifiHandoffFromBootMenu_ = true;
             wifiPortal_.revertToAdhoc();
         } else if (outcome == MenuHandoff::ToggleWifiPower) {
-            if (wifiPowered_) {
+            if (kPreAlphaWifiAlwaysOn) {
+                enableWifi();
+                settings_.setWifiKeepAlive(true);
+                network_.setKeepAlive(true);
+                Serial.println(
+                    "[PRE-ALPHA] WiFi power control is locked ON");
+            } else if (wifiPowered_) {
                 disableWifi();
             } else {
                 enableWifi();
@@ -515,7 +546,8 @@ void App::handleEncoderEvent(const EncoderEvent& event)
             }
             bootMenu_.openWifiSubmenu();
         } else if (outcome == MenuHandoff::ToggleWifiKeepAlive) {
-            const bool enabled = !settings_.wifiKeepAlive();
+            const bool enabled =
+                kPreAlphaWifiAlwaysOn ? true : !settings_.wifiKeepAlive();
             settings_.setWifiKeepAlive(enabled);
             network_.setKeepAlive(enabled);
             bootMenu_.openWifiSubmenu();
